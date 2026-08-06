@@ -38,6 +38,17 @@ export type GuideVideo = {
   chapters: VideoChapter[];
   /** Frame used as the still shown before playback starts. */
   posterFrame: number;
+  /**
+   * The button under the player, which opens WhatsApp with the request this
+   * video demonstrates already typed — so a viewer can do what they just
+   * watched rather than read about it.
+   */
+  whatsappCta: {
+    /** Names the action, e.g. "Create a lesson plan". Avoid "try this". */
+    label: string;
+    /** Prefilled into the chat; the teacher still presses send. */
+    message: string;
+  };
   component: ComponentType<Record<string, unknown>>;
 };
 

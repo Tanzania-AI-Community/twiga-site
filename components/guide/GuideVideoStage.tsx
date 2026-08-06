@@ -2,12 +2,14 @@
 
 import { useRef } from "react";
 import dynamic from "next/dynamic";
+import Link from "next/link";
+import { ArrowUpRight } from "lucide-react";
 
-import { cn } from "@/lib/utils";
+import WhatsAppIcon from "@/components/icons/WhatsAppIcon";
+import { whatsappLink } from "@/lib/whatsapp";
 import GuideVideoChapters from "./GuideVideoChapters";
 import GuideVideoControls from "./GuideVideoControls";
 import { useGuideVideo } from "./GuideVideoProvider";
-import { guideColumn } from "./layout";
 
 const GuideVideoPlayer = dynamic(() => import("./GuideVideoPlayer"), {
   ssr: false,
@@ -25,7 +27,7 @@ export default function GuideVideoStage() {
   const containerRef = useRef<HTMLDivElement>(null);
   if (!context) return null;
 
-  const { video, attachPlayer, frame } = context;
+  const { video, attachPlayer, isAtStart } = context;
 
   return (
     <section aria-label={`Video walkthrough: ${video.title}`}>
@@ -40,13 +42,34 @@ export default function GuideVideoStage() {
         <GuideVideoPlayer
           video={video}
           attachPlayer={attachPlayer}
-          showPoster={frame === 0}
+          showPoster={isAtStart}
         />
         <GuideVideoControls containerRef={containerRef} />
       </div>
 
-      {/* The rail is xl-only; below that the segments live under the player. */}
-      <div className={cn(guideColumn, "mt-6 xl:hidden")}>
+      {/* Sends the exact request the video demonstrates. The teacher still
+          presses send in WhatsApp — this only opens the thread prefilled.
+          Full main width rather than the reading column, so it sits against
+          the right edge of the video. */}
+      <div className="mt-4 flex justify-end px-5 sm:px-8 xl:px-10">
+        <Link
+          href={whatsappLink(video.whatsappCta.message)}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="group inline-flex shrink-0 items-center gap-2.5 rounded-full bg-twiga-wa-dark py-2.5 pl-4 pr-3.5 text-sm font-semibold text-white shadow-[0_6px_18px_-8px_rgba(18,140,126,0.9)] transition-colors hover:bg-twiga-wa"
+        >
+          <WhatsAppIcon className="size-[18px]" />
+          {video.whatsappCta.label}
+          <ArrowUpRight
+            className="size-4 transition-transform group-hover:-translate-y-px group-hover:translate-x-px"
+            strokeWidth={2.2}
+          />
+        </Link>
+      </div>
+
+      {/* The rail is xl-only; below that the segments live under the player,
+          across the full width rather than the reading column. */}
+      <div className="mt-6 px-5 sm:px-8 xl:hidden">
         <GuideVideoChapters variant="inline" />
       </div>
     </section>

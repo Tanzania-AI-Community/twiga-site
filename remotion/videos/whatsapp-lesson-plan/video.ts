@@ -25,5 +25,11 @@ export const whatsappLessonPlanVideo: GuideVideo = {
   chapters,
   // A beat after the lesson-plan card lands, so the still shows the payoff.
   posterFrame: Math.round((SCHEDULE[1].bubbleStart + 1) * FPS),
+  whatsappCta: {
+    label: "Create a lesson plan on WhatsApp",
+    // The request the video opens with, so the button sends exactly what the
+    // viewer just watched being asked.
+    message: MESSAGES[0].text ?? "",
+  },
   component: ChatScene as ComponentType<Record<string, unknown>>,
 };

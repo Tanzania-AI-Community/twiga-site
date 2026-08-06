@@ -32,6 +32,9 @@ export default function GuideVideoControls({
 }) {
   const context = useGuideVideo();
   const trackRef = useRef<HTMLDivElement>(null);
+  const fillRefs = useRef<(HTMLSpanElement | null)[]>([]);
+  const timeRef = useRef<HTMLSpanElement>(null);
+  const frameRef = useRef(0);
   const [isScrubbing, setIsScrubbing] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
@@ -41,6 +44,30 @@ export default function GuideVideoControls({
     document.addEventListener("fullscreenchange", onChange);
     return () => document.removeEventListener("fullscreenchange", onChange);
   }, [containerRef]);
+
+  const subscribeFrame = context?.subscribeFrame;
+  const video = context?.video;
+
+  // Paint the fills and the clock straight onto the DOM. These change every
+  // frame, and going through React would put them behind the picture.
+  useEffect(() => {
+    if (!subscribeFrame || !video) return;
+    return subscribeFrame((frame) => {
+      frameRef.current = frame;
+
+      video.chapters.forEach((chapter, index) => {
+        const fill = fillRefs.current[index];
+        if (!fill) return;
+        const span = Math.max(chapterEnd(video, index) - chapter.from, 1);
+        fill.style.width = `${clamp01((frame - chapter.from) / span) * 100}%`;
+      });
+
+      if (timeRef.current) {
+        timeRef.current.textContent = formatFrames(frame, video.fps);
+      }
+      trackRef.current?.setAttribute("aria-valuenow", String(frame));
+    });
+  }, [subscribeFrame, video]);
 
   const seekToClientX = useCallback(
     (clientX: number) => {
@@ -52,17 +79,9 @@ export default function GuideVideoControls({
     [context],
   );
 
-  if (!context) return null;
+  if (!context || !video) return null;
 
-  const {
-    video,
-    frame,
-    isPlaying,
-    isMuted,
-    seekToFrame,
-    togglePlay,
-    toggleMute,
-  } = context;
+  const { isPlaying, isMuted, seekToFrame, togglePlay, toggleMute } = context;
 
   const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     event.currentTarget.setPointerCapture(event.pointerId);
@@ -97,16 +116,13 @@ export default function GuideVideoControls({
         aria-label="Seek"
         aria-valuemin={0}
         aria-valuemax={video.durationInFrames - 1}
-        aria-valuenow={frame}
-        aria-valuetext={`${formatFrames(frame, video.fps)} of ${formatFrames(
-          video.durationInFrames,
-          video.fps,
-        )}`}
+        aria-valuenow={0}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={endScrub}
         onPointerCancel={endScrub}
         onKeyDown={(event) => {
+          const frame = frameRef.current;
           if (event.key === "ArrowRight") seekToFrame(frame + video.fps);
           else if (event.key === "ArrowLeft") seekToFrame(frame - video.fps);
           else return;
@@ -129,9 +145,12 @@ export default function GuideVideoControls({
                 !isLast && "border-r-4 border-transparent bg-clip-padding",
               )}
             >
+              {/* Width is written by the frame subscription, not rendered. */}
               <span
-                className="block h-full rounded-full bg-twiga-amber-light"
-                style={{ width: `${clamp01((frame - chapter.from) / span) * 100}%` }}
+                ref={(node) => {
+                  fillRefs.current[index] = node;
+                }}
+                className="block h-full w-0 rounded-full bg-twiga-amber-light"
               />
             </span>
           );
@@ -162,7 +181,7 @@ export default function GuideVideoControls({
         </ControlButton>
 
         <span className="ml-1.5 text-xs font-medium tabular-nums text-white/90">
-          {formatFrames(frame, video.fps)}
+          <span ref={timeRef}>{formatFrames(0, video.fps)}</span>
           <span className="text-white/50">
             {" / "}
             {formatFrames(video.durationInFrames, video.fps)}

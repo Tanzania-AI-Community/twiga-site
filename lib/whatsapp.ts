@@ -3,7 +3,7 @@ export const TWIGA_WHATSAPP_NUMBER = "255743464912";
 
 /** Pre-filled first message, so the teacher only has to press send. */
 export const TWIGA_WHATSAPP_GREETING =
-  "Hi Twiga! I'm a teacher and I'd like to join the beta.";
+  "Hey there! I'm a new teacher and I'd like to start using Twiga.";
 
 /** wa.me deep link — opens the WhatsApp app on mobile, WhatsApp Web on desktop. */
 export function whatsappLink(message: string = TWIGA_WHATSAPP_GREETING): string {

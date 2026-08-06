@@ -1,6 +1,8 @@
 import Link from "next/link";
 import Image from "next/image";
 
+import { whatsappLink } from "@/lib/whatsapp";
+
 export default function SiteHeader() {
   return (
     <header className="sticky top-0 z-50 border-b border-twiga-cream-dark bg-twiga-cream/90 backdrop-blur-md">
@@ -40,7 +42,9 @@ export default function SiteHeader() {
             Guide
           </Link>
           <Link
-            href="#register"
+            href={whatsappLink()}
+            target="_blank"
+            rel="noopener noreferrer"
             className="rounded-md bg-twiga-forest px-[18px] py-2 text-sm font-semibold text-twiga-cream transition-colors hover:bg-twiga-forest-mid"
           >
             Register Free

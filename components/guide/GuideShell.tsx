@@ -1,12 +1,19 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { Menu, X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { whatsappLink } from "@/lib/whatsapp";
 import { getGuideTrack, normalizeGuidePath } from "@/lib/guide/navigation";
 import { findGuideVideo } from "@/remotion/registry";
 import GuideSidebar from "./GuideSidebar";
@@ -18,19 +25,132 @@ import GuideVideoStage from "./GuideVideoStage";
 import GuideVideoChapters from "./GuideVideoChapters";
 import { guideColumn } from "./layout";
 
+/** Header height, and the distance it travels when it hides. */
+const HEADER_HEIGHT = "4rem";
+const HEADER_HEIGHT_PX = 64;
+/** Ignore scroll jitter below this, so the header does not flicker. */
+const SCROLL_THRESHOLD = 8;
+/** Always keep the header out near the top of the page. */
+const REVEAL_ZONE = 96;
+/** Sitting still this long also tucks the header away. */
+const IDLE_DELAY = 10_000;
+/** Anything here counts as the reader still being present. */
+const ACTIVITY_EVENTS = [
+  "pointermove",
+  "pointerdown",
+  "keydown",
+  "wheel",
+  "touchstart",
+  "scroll",
+  "focusin",
+] as const;
+
 export default function GuideShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [headerTucked, setHeaderTucked] = useState(false);
+  const [idle, setIdle] = useState(false);
+  const lastScrollY = useRef(0);
+  const idleRef = useRef(false);
+  /** Set while closing the header's gap, so that scroll is not read as intent. */
+  const adjustingScroll = useRef(false);
 
   // /guide is the track chooser — it renders full width, with no doc chrome.
   const track = getGuideTrack(pathname);
   const isLanding = !track && normalizeGuidePath(pathname) === "/guide";
   const video = findGuideVideo(pathname);
 
-  // Close the drawer whenever navigation happens.
+  // Close the drawer and bring the header back whenever navigation happens.
   useEffect(() => {
     setMenuOpen(false);
+    setHeaderTucked(false);
+    setIdle(false);
+    idleRef.current = false;
+    lastScrollY.current = window.scrollY;
   }, [pathname]);
+
+  /**
+   * Hide the header on the way down and bring it back on the way up, so
+   * reading gets the full viewport. The sticky columns follow it through
+   * --guide-header-h rather than each tracking scroll themselves.
+   */
+  useEffect(() => {
+    const onScroll = () => {
+      if (adjustingScroll.current) return;
+      const y = window.scrollY;
+      const delta = y - lastScrollY.current;
+      // Below the threshold this is jitter, and reacting to it would make the
+      // header flicker; leaving lastScrollY alone lets small moves accumulate.
+      if (Math.abs(delta) < SCROLL_THRESHOLD) return;
+      lastScrollY.current = y;
+      setHeaderTucked(delta > 0 && y > REVEAL_ZONE);
+    };
+
+    lastScrollY.current = window.scrollY;
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  /**
+   * Reading without touching anything also hands the header's space back;
+   * the next sign of life brings it straight back.
+   */
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout>;
+
+    const sleepLater = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        idleRef.current = true;
+        setIdle(true);
+      }, IDLE_DELAY);
+    };
+
+    const wake = () => {
+      // Guarded so a mouse sweep does not queue a state update per pixel.
+      if (idleRef.current) {
+        idleRef.current = false;
+        setIdle(false);
+      }
+      sleepLater();
+    };
+
+    ACTIVITY_EVENTS.forEach((event) =>
+      window.addEventListener(event, wake, { passive: true }),
+    );
+    sleepLater();
+
+    return () => {
+      clearTimeout(timer);
+      ACTIVITY_EVENTS.forEach((event) =>
+        window.removeEventListener(event, wake),
+      );
+    };
+  }, []);
+
+  // The drawer sits under the header, so the header has to stay put with it open.
+  const headerHidden = (headerTucked || idle) && !menuOpen;
+
+  /**
+   * The header is sticky, so it keeps its band of the document even when it
+   * slides away. Past that band the empty space is already scrolled off, but
+   * at the top of the page it would show as a gap — so close it by scrolling
+   * the band out of view, and give it back when the header returns.
+   */
+  useEffect(() => {
+    if (window.scrollY > HEADER_HEIGHT_PX) return;
+    const target = headerHidden ? HEADER_HEIGHT_PX : 0;
+    if (Math.abs(window.scrollY - target) < 1) return;
+
+    adjustingScroll.current = true;
+    window.scrollTo({ top: target, behavior: "smooth" });
+    const settled = setTimeout(() => {
+      adjustingScroll.current = false;
+      lastScrollY.current = window.scrollY;
+    }, 600);
+
+    return () => clearTimeout(settled);
+  }, [headerHidden]);
 
   // Lock the page behind the drawer and allow Escape to dismiss it.
   useEffect(() => {
@@ -50,8 +170,20 @@ export default function GuideShell({ children }: { children: ReactNode }) {
   }, [menuOpen]);
 
   return (
-    <div className="guide-shell min-h-screen bg-twiga-cream bg-twiga-texture text-twiga-text">
-      <header className="sticky top-0 z-40 border-b border-twiga-cream-dark bg-twiga-cream/90 backdrop-blur-md">
+    <div
+      className="guide-shell min-h-screen bg-twiga-cream bg-twiga-texture text-twiga-text"
+      style={
+        {
+          "--guide-header-h": headerHidden ? "0rem" : HEADER_HEIGHT,
+        } as CSSProperties
+      }
+    >
+      <header
+        className={cn(
+          "sticky top-0 z-40 border-b border-twiga-cream-dark bg-twiga-cream/90 backdrop-blur-md transition-transform duration-300 ease-out",
+          headerHidden && "-translate-y-full",
+        )}
+      >
         <div className="mx-auto flex h-16 max-w-[1600px] items-center gap-3 px-4 sm:px-6">
           <button
             type="button"
@@ -107,7 +239,9 @@ export default function GuideShell({ children }: { children: ReactNode }) {
               GitHub ↗
             </Link>
             <Link
-              href="/#register"
+              href={whatsappLink()}
+              target="_blank"
+              rel="noopener noreferrer"
               className="rounded-md bg-twiga-forest px-3.5 py-2 text-sm font-semibold text-twiga-cream transition-colors hover:bg-twiga-forest-mid sm:px-[18px]"
             >
               Register Free
@@ -168,8 +302,11 @@ export default function GuideShell({ children }: { children: ReactNode }) {
       ) : (
         <GuideVideoProvider video={video}>
           <div className="mx-auto flex max-w-[1600px] items-start">
-            {/* Desktop sidebar */}
-            <aside className="sticky top-16 hidden h-[calc(100vh-4rem)] w-[17rem] shrink-0 border-r border-twiga-cream-dark lg:block">
+            {/* Desktop sidebar. Sticks below the header and reclaims that
+                space as the header tucks away — driven by top/height rather
+                than padding, since the column already sits under the header
+                in normal flow. */}
+            <aside className="sticky top-[var(--guide-header-h)] hidden h-[calc(100vh-var(--guide-header-h))] w-[17rem] shrink-0 border-r border-twiga-cream-dark transition-[top,height] duration-300 ease-out lg:block">
               <GuideSidebar />
             </aside>
 
@@ -188,7 +325,7 @@ export default function GuideShell({ children }: { children: ReactNode }) {
             </main>
 
             {/* Video segments where there is a video, page headings otherwise */}
-            <aside className="sticky top-16 hidden h-[calc(100vh-4rem)] w-[17rem] shrink-0 overflow-y-auto py-10 pr-6 xl:block">
+            <aside className="sticky top-[var(--guide-header-h)] hidden h-[calc(100vh-var(--guide-header-h))] w-[17rem] shrink-0 overflow-y-auto pb-10 pr-6 pt-4 transition-[top,height] duration-300 ease-out xl:block">
               {video ? <GuideVideoChapters /> : <GuideToc />}
             </aside>
           </div>

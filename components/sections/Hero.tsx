@@ -1,5 +1,7 @@
 import Link from "next/link";
 
+import { whatsappLink } from "@/lib/whatsapp";
+
 function SendIcon() {
   return (
     <svg
@@ -35,7 +37,9 @@ export default function Hero() {
           </p>
           <div className="twiga-fade-up twiga-fade-up-delay-4 mt-10 flex flex-wrap items-center gap-4">
             <Link
-              href="#register"
+              href={whatsappLink()}
+              target="_blank"
+              rel="noopener noreferrer"
               className="inline-flex items-center gap-2 rounded-lg bg-twiga-forest px-7 py-3.5 text-sm font-semibold text-twiga-cream transition-all hover:bg-twiga-forest-mid hover:-translate-y-px"
             >
               <span aria-hidden>💬</span>
