@@ -60,13 +60,15 @@ export default function GuideShell({ children }: { children: ReactNode }) {
   const isLanding = !track && normalizeGuidePath(pathname) === "/guide";
   const video = findGuideVideo(pathname);
 
-  // Close the drawer and bring the header back whenever navigation happens.
+  // Every guide page opens on its video, so a new page always starts from the
+  // top rather than wherever the last one was left.
   useEffect(() => {
     setMenuOpen(false);
     setHeaderTucked(false);
     setIdle(false);
     idleRef.current = false;
-    lastScrollY.current = window.scrollY;
+    window.scrollTo({ top: 0, behavior: "instant" });
+    lastScrollY.current = 0;
   }, [pathname]);
 
   /**
@@ -325,7 +327,10 @@ export default function GuideShell({ children }: { children: ReactNode }) {
             </main>
 
             {/* Video segments where there is a video, page headings otherwise */}
-            <aside className="sticky top-[var(--guide-header-h)] hidden h-[calc(100vh-var(--guide-header-h))] w-[17rem] shrink-0 overflow-y-auto pb-10 pr-6 pt-4 transition-[top,height] duration-300 ease-out xl:block">
+            {/* No horizontal padding: the rail's rows carry their own, so the
+                active row's highlight can run the full width of the column
+                instead of stopping short of it. */}
+            <aside className="sticky top-[var(--guide-header-h)] hidden h-[calc(100vh-var(--guide-header-h))] w-[17rem] shrink-0 overflow-y-auto pb-10 pt-4 transition-[top,height] duration-300 ease-out xl:block">
               {video ? <GuideVideoChapters /> : <GuideToc />}
             </aside>
           </div>

@@ -103,7 +103,9 @@ export default function GuideToc() {
   if (headings.length === 0) return null;
 
   return (
-    <div className="pl-2">
+    // The column itself has no padding — the chapter rail needs to reach its
+    // edges — so the table of contents supplies its own.
+    <div className="pl-2 pr-6">
       <p className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-twiga-text-light">
         <ListTree className="size-3.5" strokeWidth={2} />
         On this page

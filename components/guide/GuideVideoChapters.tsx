@@ -51,16 +51,22 @@ export default function GuideVideoChapters({
   }
 
   return (
-    <div className="pl-2">
-      <Heading />
+    <div>
+      {/* Matches the rows' own padding, since the column has none. */}
+      <Heading className="px-4" />
       <ChapterRail {...props} />
     </div>
   );
 }
 
-function Heading() {
+function Heading({ className }: { className?: string }) {
   return (
-    <p className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-twiga-text-light">
+    <p
+      className={cn(
+        "mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-twiga-text-light",
+        className,
+      )}
+    >
       <ListVideo className="size-3.5" strokeWidth={2} />
       Follow along
     </p>
