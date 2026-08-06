@@ -34,6 +34,12 @@ export default function SiteHeader() {
             About
           </Link>
           <Link
+            href="/guide"
+            className="hidden text-sm font-medium text-twiga-text-muted transition-colors hover:text-twiga-forest sm:inline"
+          >
+            Guide
+          </Link>
+          <Link
             href="#register"
             className="rounded-md bg-twiga-forest px-[18px] py-2 text-sm font-semibold text-twiga-cream transition-colors hover:bg-twiga-forest-mid"
           >
