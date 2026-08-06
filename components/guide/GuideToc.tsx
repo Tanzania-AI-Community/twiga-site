@@ -32,54 +32,87 @@ export default function GuideToc() {
     const article = document.getElementById("guide-article");
     if (!article) return;
 
-    const nodes = Array.from(
-      article.querySelectorAll<HTMLHeadingElement>("h2, h3"),
-    );
+    let spy: IntersectionObserver | null = null;
 
-    const used = new Set<string>();
-    const collected = nodes.map((node) => {
-      const text = node.textContent?.trim() ?? "";
-      if (!node.id) {
-        const base = slugify(text) || "section";
-        let id = base;
-        let n = 2;
-        while (used.has(id) || document.getElementById(id)) {
-          id = `${base}-${n++}`;
+    const collect = () => {
+      const nodes = Array.from(
+        article.querySelectorAll<HTMLHeadingElement>("h2, h3"),
+      );
+
+      const used = new Set<string>();
+      const collected = nodes.map((node) => {
+        const text = node.textContent?.trim() ?? "";
+        if (!node.id) {
+          const base = slugify(text) || "section";
+          let id = base;
+          let n = 2;
+          while (used.has(id) || document.getElementById(id)) {
+            id = `${base}-${n++}`;
+          }
+          node.id = id;
         }
-        node.id = id;
-      }
-      used.add(node.id);
-      return {
-        id: node.id,
-        text,
-        level: node.tagName === "H3" ? (3 as const) : (2 as const),
+        used.add(node.id);
+        return {
+          id: node.id,
+          text,
+          level: node.tagName === "H3" ? (3 as const) : (2 as const),
+        };
+      });
+
+      // Same headings as last time means the mutation was elsewhere in the
+      // article, so leave state (and the active entry) alone.
+      setHeadings((previous) =>
+        previous.length === collected.length &&
+        previous.every((heading, index) => heading.id === collected[index].id)
+          ? previous
+          : collected,
+      );
+      setActiveId((previous) => previous || collected[0]?.id || "");
+
+      spy?.disconnect();
+      if (nodes.length === 0) return;
+
+      const update = () => {
+        let current = nodes[0];
+        for (const node of nodes) {
+          if (node.getBoundingClientRect().top <= HEADER_OFFSET) {
+            current = node;
+          } else {
+            break;
+          }
+        }
+        setActiveId(current.id);
       };
-    });
 
-    setHeadings(collected);
-    setActiveId(collected[0]?.id ?? "");
-
-    if (nodes.length === 0) return;
-
-    const update = () => {
-      let current = nodes[0];
-      for (const node of nodes) {
-        if (node.getBoundingClientRect().top <= HEADER_OFFSET) {
-          current = node;
-        } else {
-          break;
-        }
-      }
-      setActiveId(current.id);
+      spy = new IntersectionObserver(update, {
+        rootMargin: `-${HEADER_OFFSET}px 0px -60% 0px`,
+        threshold: [0, 1],
+      });
+      nodes.forEach((node) => spy?.observe(node));
     };
 
-    const observer = new IntersectionObserver(update, {
-      rootMargin: `-${HEADER_OFFSET}px 0px -60% 0px`,
-      threshold: [0, 1],
-    });
-    nodes.forEach((node) => observer.observe(node));
+    collect();
 
-    return () => observer.disconnect();
+    // The article can arrive after this effect runs, since the page streams in
+    // and hydration does not wait for it. Without this the list would be built
+    // from an empty article once and never rebuilt.
+    //
+    // Rebuilding is deferred rather than immediate because collecting stamps
+    // ids onto the headings, and writing to nodes React has not hydrated yet
+    // is a hydration mismatch. Waiting for the commit to settle also coalesces
+    // the burst of mutations that streaming produces.
+    let queued: ReturnType<typeof setTimeout>;
+    const content = new MutationObserver(() => {
+      clearTimeout(queued);
+      queued = setTimeout(collect, 50);
+    });
+    content.observe(article, { childList: true, subtree: true });
+
+    return () => {
+      clearTimeout(queued);
+      content.disconnect();
+      spy?.disconnect();
+    };
   }, [pathname]);
 
   const handleClick = useCallback(
@@ -122,7 +155,7 @@ export default function GuideToc() {
                   "-ml-px block border-l-2 py-1 pr-2 text-[0.8125rem] leading-snug transition-colors",
                   heading.level === 3 ? "pl-6" : "pl-3",
                   isActive
-                    ? "border-twiga-amber font-medium text-twiga-forest"
+                    ? "border-twiga-red font-medium text-twiga-forest"
                     : "border-transparent font-light text-twiga-text-muted hover:border-twiga-forest-light hover:text-twiga-forest",
                 )}
               >

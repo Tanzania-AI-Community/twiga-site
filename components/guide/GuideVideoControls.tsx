@@ -150,7 +150,7 @@ export default function GuideVideoControls({
                 ref={(node) => {
                   fillRefs.current[index] = node;
                 }}
-                className="block h-full w-0 rounded-full bg-twiga-amber-light"
+                className="block h-full w-0 rounded-full bg-twiga-red-light"
               />
             </span>
           );

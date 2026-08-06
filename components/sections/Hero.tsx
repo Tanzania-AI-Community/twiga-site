@@ -20,14 +20,14 @@ export default function Hero() {
       <div className="mx-auto grid max-w-[1100px] items-center gap-12 md:grid-cols-2 md:gap-16">
         <div>
           <div
-            className="twiga-fade-up twiga-fade-up-delay-1 mb-6 inline-flex items-center gap-2 rounded-full border border-[#f4cda0] bg-twiga-amber-pale px-3.5 py-1.5 text-xs font-semibold uppercase tracking-wide text-twiga-amber"
+            className="twiga-fade-up twiga-fade-up-delay-1 mb-6 inline-flex items-center gap-2 rounded-full border border-twiga-red-line bg-twiga-red-pale px-3.5 py-1.5 text-xs font-semibold uppercase tracking-wide text-twiga-red-dark"
           >
-            <span className="size-1.5 rounded-full bg-twiga-amber" />
+            <span className="size-1.5 rounded-full bg-twiga-red" />
             Meta Llama Impact Grant Winner 2024
           </div>
           <h1 className="twiga-fade-up twiga-fade-up-delay-2 font-display text-[clamp(2.4rem,4.5vw,3.4rem)] font-normal leading-[1.15] text-twiga-forest">
             Your teaching{" "}
-            <em className="font-display italic text-twiga-amber">companion</em>,
+            <em className="font-display italic text-twiga-red">companion</em>,
             <br />
             always on WhatsApp
           </h1>

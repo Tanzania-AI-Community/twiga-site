@@ -19,7 +19,7 @@ export default function GuidePager() {
       {previous ? (
         <Link
           href={previous.href}
-          className="group flex flex-col gap-1 rounded-xl border border-twiga-cream-dark px-4 py-3.5 transition-colors hover:border-twiga-forest-light hover:bg-twiga-forest-pale/50"
+          className="group flex flex-col gap-1 rounded-md border border-twiga-cream-dark px-4 py-3.5 transition-colors hover:border-twiga-forest-light hover:bg-twiga-forest-pale/50"
         >
           <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-twiga-text-light">
             <ArrowLeft className="size-3.5" strokeWidth={2} />
@@ -36,7 +36,7 @@ export default function GuidePager() {
       {next ? (
         <Link
           href={next.href}
-          className="group flex flex-col items-end gap-1 rounded-xl border border-twiga-cream-dark px-4 py-3.5 text-right transition-colors hover:border-twiga-forest-light hover:bg-twiga-forest-pale/50 sm:col-start-2"
+          className="group flex flex-col items-end gap-1 rounded-md border border-twiga-cream-dark px-4 py-3.5 text-right transition-colors hover:border-twiga-forest-light hover:bg-twiga-forest-pale/50 sm:col-start-2"
         >
           <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-twiga-text-light">
             Next

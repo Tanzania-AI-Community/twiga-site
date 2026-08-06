@@ -12,9 +12,15 @@
   --color-twiga-forest-mid: #2d6a4f;
   --color-twiga-forest-light: #4a9b72;
   --color-twiga-forest-pale: #eaf4ee;
-  --color-twiga-amber: #c96b1a;
-  --color-twiga-amber-light: #f4a261;
-  --color-twiga-amber-pale: #fdf1e6;
+  --color-twiga-forest-line: #bfe3cd;
+  /* The accent is the red from the Twiga logo mark. `red` is the mark itself,
+     used for solid shapes; `red-dark` is the text tone, since the mark only
+     reaches 4.2:1 on cream and small text needs 4.5:1. */
+  --color-twiga-red: #d6431e;
+  --color-twiga-red-dark: #b3371a;
+  --color-twiga-red-light: #ef7f5c;
+  --color-twiga-red-pale: #fdefea;
+  --color-twiga-red-line: #f3c9bb;
   --color-twiga-text: #1c1a17;
   --color-twiga-text-muted: #7a7568;
   --color-twiga-text-light: #a8a296;
@@ -268,11 +274,11 @@
 }
 
 .guide-prose :where(code):not(:where(.not-prose *, pre *)) {
-  @apply rounded-md border border-twiga-cream-dark bg-twiga-cream-mid px-1.5 py-0.5 text-[0.85em] font-normal text-twiga-forest;
+  @apply rounded-[3px] border border-twiga-cream-dark bg-twiga-cream-mid px-1.5 py-0.5 text-[0.85em] font-normal text-twiga-forest;
 }
 
 .guide-prose :where(pre):not(:where(.not-prose *)) {
-  @apply my-6 overflow-x-auto rounded-xl bg-twiga-forest px-4 py-3.5 text-[0.8125rem] leading-relaxed text-twiga-cream;
+  @apply my-6 overflow-x-auto rounded-md bg-twiga-forest px-4 py-3.5 text-[0.8125rem] leading-relaxed text-twiga-cream;
 }
 
 .guide-prose :where(pre code):not(:where(.not-prose *)) {
@@ -280,7 +286,25 @@
 }
 
 .guide-prose :where(blockquote):not(:where(.not-prose *)) {
-  @apply my-6 border-l-2 border-twiga-amber pl-4 italic text-twiga-text-muted;
+  @apply my-6 border-l-2 border-twiga-red pl-4 italic text-twiga-text-muted;
+}
+
+/* Steps and callouts are .not-prose, so the rules above skip them. Code inside
+   them still needs to look like code. The inline chip is white rather than
+   cream here, so it sits on any of the three callout tints. */
+.guide-steps :where(code):not(:where(pre *)),
+.guide-callout :where(code):not(:where(pre *)) {
+  @apply rounded-[3px] border border-twiga-cream-dark/70 bg-white/70 px-1.5 py-0.5 text-[0.85em] font-normal text-twiga-forest;
+}
+
+.guide-steps :where(pre),
+.guide-callout :where(pre) {
+  @apply my-3 overflow-x-auto rounded-md bg-twiga-forest px-3.5 py-3 text-[0.8125rem] leading-relaxed text-twiga-cream;
+}
+
+.guide-steps :where(pre code),
+.guide-callout :where(pre code) {
+  @apply border-0 bg-transparent p-0 font-mono text-inherit;
 }
 
 .guide-prose :where(hr):not(:where(.not-prose *)) {
@@ -288,7 +312,7 @@
 }
 
 .guide-prose :where(img):not(:where(.not-prose *)) {
-  @apply my-6 h-auto max-w-full rounded-xl border border-twiga-cream-dark;
+  @apply my-6 h-auto max-w-full rounded-md border border-twiga-cream-dark;
 }
 
 /* display:block lets wide tables scroll on their own instead of the page */

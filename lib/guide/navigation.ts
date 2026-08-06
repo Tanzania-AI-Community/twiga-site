@@ -2,6 +2,7 @@ import {
   Code2,
   GraduationCap,
   HeartHandshake,
+  Network,
   Rocket,
   ServerCog,
   Wrench,
@@ -92,7 +93,7 @@ export const guideTracks: GuideTrack[] = [
     shortTitle: "Developers",
     href: "/guide/developers",
     tagline:
-      "Run Twiga yourself — architecture, local setup, deployment and how to contribute upstream.",
+      "Run the Twiga backend yourself, understand how it works, and contribute upstream.",
     icon: Code2,
     sections: [
       {
@@ -102,18 +103,43 @@ export const guideTracks: GuideTrack[] = [
           {
             title: "Overview",
             href: "/guide/developers",
-            summary: "The stack at a glance and what you need to run it.",
-          },
-          {
-            title: "Architecture",
-            href: "/guide/developers/getting-started/architecture",
-            summary:
-              "How the WhatsApp webhook, retrieval layer and models fit together.",
+            summary: "The stack at a glance and which setup path to take.",
           },
           {
             title: "Local Setup",
             href: "/guide/developers/getting-started/local-setup",
-            summary: "Run the stack on your machine with Docker or pnpm.",
+            summary: "Get the API, the database and sample data running.",
+          },
+          {
+            title: "Mock WhatsApp",
+            href: "/guide/developers/getting-started/mock-whatsapp",
+            summary: "Chat with your local bot without a Meta account.",
+          },
+          {
+            title: "Connecting Real WhatsApp",
+            href: "/guide/developers/getting-started/whatsapp",
+            summary: "Wire up Meta and ngrok to message the bot from your phone.",
+          },
+        ],
+      },
+      {
+        title: "How Twiga Works",
+        icon: Network,
+        items: [
+          {
+            title: "Architecture",
+            href: "/guide/developers/architecture/overview",
+            summary: "What happens between an incoming message and a reply.",
+          },
+          {
+            title: "Data Model",
+            href: "/guide/developers/architecture/data-model",
+            summary: "The tables, how they relate, and where embeddings live.",
+          },
+          {
+            title: "Adding a Tool",
+            href: "/guide/developers/architecture/adding-a-tool",
+            summary: "Give the model a new capability, step by step.",
           },
         ],
       },
@@ -127,14 +153,19 @@ export const guideTracks: GuideTrack[] = [
             summary: "Every variable Twiga reads, and which ones are required.",
           },
           {
-            title: "Deployment",
-            href: "/guide/developers/operations/deployment",
-            summary: "Ship to your own infrastructure with the standalone build.",
-          },
-          {
             title: "Database & Migrations",
             href: "/guide/developers/operations/database",
-            summary: "Drizzle schema, migrations and seeding.",
+            summary: "Alembic migrations, seeding and textbook ingestion.",
+          },
+          {
+            title: "Deployment",
+            href: "/guide/developers/operations/deployment",
+            summary: "How releases ship, and what production needs.",
+          },
+          {
+            title: "Monitoring",
+            href: "/guide/developers/operations/monitoring",
+            summary: "Metrics, dashboards, logs and scheduled jobs.",
           },
         ],
       },
@@ -145,17 +176,17 @@ export const guideTracks: GuideTrack[] = [
           {
             title: "How to Contribute",
             href: "/guide/developers/contributing/how-to-contribute",
-            summary: "Good first issues, review expectations and release cadence.",
+            summary: "Branches, commits, pull requests and review.",
           },
           {
-            title: "Code of Conduct",
-            href: "/guide/developers/contributing/code-of-conduct",
-            summary: "The standards we hold each other to.",
+            title: "Testing & Checks",
+            href: "/guide/developers/contributing/testing",
+            summary: "Run the suite and the hooks that CI runs.",
           },
           {
-            title: "Roadmap",
-            href: "/guide/developers/contributing/roadmap",
-            summary: "What the community is building next.",
+            title: "Conduct & Security",
+            href: "/guide/developers/contributing/conduct-and-security",
+            summary: "Community standards and how to report a vulnerability.",
           },
         ],
       },

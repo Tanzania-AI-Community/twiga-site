@@ -261,7 +261,7 @@ export default function SponsorsPartners() {
     <section className="bg-twiga-cream-mid px-6 py-20 md:px-8 md:py-24">
       <div className="mx-auto max-w-[1100px]">
         <header className="mb-10 md:mb-14">
-          <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-twiga-amber">
+          <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-twiga-red-dark">
             Partners &amp; Sponsors
           </p>
           <h2 className="font-display text-[clamp(1.8rem,3vw,2.5rem)] font-normal leading-tight text-twiga-forest">

@@ -127,7 +127,7 @@ function ChapterRail({
                 className={cn(
                   "absolute inset-y-1 left-0 w-1 rounded-full transition-colors",
                   isActive
-                    ? "bg-twiga-amber"
+                    ? "bg-twiga-red"
                     : "bg-transparent group-hover:bg-twiga-forest-light",
                 )}
               />
@@ -136,7 +136,7 @@ function ChapterRail({
               <span
                 className={cn(
                   "block text-[0.6875rem] font-semibold tabular-nums tracking-wide",
-                  isActive ? "text-twiga-amber" : "text-twiga-text-light",
+                  isActive ? "text-twiga-red-dark" : "text-twiga-text-light",
                 )}
               >
                 {formatFrames(chapter.from, video.fps)}
@@ -165,7 +165,7 @@ function ChapterRail({
                   ref={(node) => {
                     fillRefs.current[index] = node;
                   }}
-                  className="block h-full w-0 rounded-full bg-twiga-amber"
+                  className="block h-full w-0 rounded-full bg-twiga-red"
                 />
               </span>
             </button>
@@ -278,7 +278,7 @@ function ChapterWheel({
                 <span
                   className={cn(
                     "block text-[0.6875rem] font-semibold tabular-nums tracking-wide",
-                    isActive ? "text-twiga-amber" : "text-twiga-text-light",
+                    isActive ? "text-twiga-red-dark" : "text-twiga-text-light",
                   )}
                 >
                   {formatFrames(chapter.from, video.fps)}

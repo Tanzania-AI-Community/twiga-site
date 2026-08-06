@@ -193,7 +193,7 @@ export default function GuideShell({ children }: { children: ReactNode }) {
             aria-label="Open guide navigation"
             aria-expanded={menuOpen}
             className={cn(
-              "-ml-1 flex size-9 shrink-0 items-center justify-center rounded-lg text-twiga-forest transition-colors hover:bg-twiga-cream-mid lg:hidden",
+              "-ml-1 flex size-9 shrink-0 items-center justify-center rounded-md text-twiga-forest transition-colors hover:bg-twiga-cream-mid lg:hidden",
               isLanding && "hidden",
             )}
           >
@@ -284,7 +284,7 @@ export default function GuideShell({ children }: { children: ReactNode }) {
               type="button"
               onClick={() => setMenuOpen(false)}
               aria-label="Close guide navigation"
-              className="flex size-9 items-center justify-center rounded-lg text-twiga-text-muted transition-colors hover:bg-twiga-cream-mid hover:text-twiga-forest"
+              className="flex size-9 items-center justify-center rounded-md text-twiga-text-muted transition-colors hover:bg-twiga-cream-mid hover:text-twiga-forest"
             >
               <X className="size-5" strokeWidth={1.75} />
             </button>

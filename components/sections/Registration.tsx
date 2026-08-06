@@ -37,7 +37,7 @@ export default function Registration() {
       <div className="mx-auto max-w-[1100px]">
         <div className="grid items-start gap-10 md:grid-cols-2 md:gap-20">
           <div>
-            <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-twiga-amber">
+            <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-twiga-red-dark">
               Get Started
             </p>
             <h2 className="font-display text-[clamp(1.8rem,3vw,2.5rem)] font-normal leading-tight text-twiga-forest">
@@ -114,7 +114,7 @@ export default function Registration() {
                 </span>
               </p>
 
-              <div className="mt-6 flex gap-2 rounded-lg border border-[#f4cda0] bg-twiga-amber-pale px-3.5 py-3 text-xs leading-relaxed text-[#7a4a15]">
+              <div className="mt-6 flex gap-2 rounded-lg border border-twiga-red-line bg-twiga-red-pale px-3.5 py-3 text-xs leading-relaxed text-twiga-red-dark">
                 <ShieldCheck className="mt-px size-4 shrink-0" strokeWidth={1.9} />
                 <span>
                   Message from the number you teach with — it becomes your Twiga

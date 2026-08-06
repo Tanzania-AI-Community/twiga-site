@@ -17,7 +17,7 @@ export function GuideHeading({
   return (
     <header className="not-prose mb-9">
       {eyebrow ? (
-        <p className="mb-2.5 text-xs font-semibold uppercase tracking-widest text-twiga-amber">
+        <p className="mb-2.5 text-xs font-semibold uppercase tracking-widest text-twiga-red-dark">
           {eyebrow}
         </p>
       ) : null}
@@ -33,21 +33,26 @@ export function GuideHeading({
   );
 }
 
+/**
+ * The bar at the left edge is the only thing that carries the colour. The
+ * block itself stays neutral, the same as the active row in the chapter rail,
+ * so several callouts on one page do not turn it into a patchwork of tints.
+ */
 const calloutStyles = {
   note: {
     icon: Info,
-    wrapper: "border-twiga-cream-dark bg-twiga-cream/70",
+    bar: "bg-twiga-forest-light",
     accent: "text-twiga-forest-mid",
   },
   tip: {
     icon: Lightbulb,
-    wrapper: "border-[#bfe3cd] bg-twiga-forest-pale",
+    bar: "bg-twiga-forest-mid",
     accent: "text-twiga-forest-mid",
   },
   warning: {
     icon: AlertTriangle,
-    wrapper: "border-[#f4cda0] bg-twiga-amber-pale",
-    accent: "text-twiga-amber",
+    bar: "bg-twiga-red",
+    accent: "text-twiga-red-dark",
   },
 } as const;
 
@@ -64,17 +69,18 @@ export function Callout({
   const Icon = style.icon;
 
   return (
-    <div
-      className={cn(
-        "not-prose my-6 flex gap-3 rounded-xl border px-4 py-3.5",
-        style.wrapper,
-      )}
-    >
+    // Square block, rounded bar: the radius belongs to the accent, so the bar
+    // reads as standing beside the text rather than as a boxed panel.
+    <div className="guide-callout not-prose relative my-6 flex gap-3 bg-twiga-cream py-3.5 pl-5 pr-4">
+      <span
+        aria-hidden
+        className={cn("absolute inset-y-1 left-0 w-1 rounded-full", style.bar)}
+      />
       <Icon
-        className={cn("mt-0.5 size-[18px] shrink-0", style.accent)}
+        className={cn("mt-0.5 size-[17px] shrink-0", style.accent)}
         strokeWidth={1.9}
       />
-      <div className="min-w-0 text-sm font-normal leading-relaxed text-twiga-text">
+      <div className="min-w-0 text-sm font-normal leading-relaxed text-twiga-text [&>p+p]:mt-2.5 [&>ul]:mt-1.5 [&>ul]:list-disc [&>ul]:space-y-1 [&>ul]:pl-4">
         {title ? (
           <p className="mb-1 font-semibold text-twiga-forest">{title}</p>
         ) : null}
@@ -128,7 +134,7 @@ export function GuideCard({
   return (
     <Link
       href={href}
-      className="group flex flex-col rounded-xl border border-twiga-cream-dark bg-white px-4 py-4 transition-all hover:-translate-y-px hover:border-twiga-forest-light hover:bg-twiga-forest-pale/40"
+      className="group flex flex-col rounded-md border border-twiga-cream-dark bg-white px-4 py-4 transition-all hover:-translate-y-px hover:border-twiga-forest-light hover:bg-twiga-forest-pale/40"
     >
       <span className="flex items-center gap-1.5 font-sans text-[0.95rem] font-semibold tracking-tight text-twiga-forest">
         {title}
@@ -153,7 +159,7 @@ export function ChatSample({
   messages: { from: "teacher" | "twiga"; text: string }[];
 }) {
   return (
-    <div className="not-prose my-6 overflow-hidden rounded-xl border border-twiga-cream-dark">
+    <div className="not-prose my-6 overflow-hidden rounded-md border border-twiga-cream-dark">
       <div className="flex items-center gap-2.5 bg-twiga-wa-dark px-3.5 py-2.5">
         <span className="flex size-7 items-center justify-center rounded-full bg-twiga-wa font-sans text-xs font-semibold text-white">
           T

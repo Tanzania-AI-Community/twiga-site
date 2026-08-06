@@ -47,7 +47,7 @@ export default function GuideSidebar({ onNavigate }: GuideSidebarProps) {
         <div
           role="tablist"
           aria-label="Guide track"
-          className="flex gap-1 rounded-lg border border-twiga-cream-dark bg-white/60 p-1"
+          className="flex gap-1 rounded-md border border-twiga-cream-dark bg-white/60 p-1"
         >
           {guideTracks.map((entry) => {
             const isActive = entry.slug === track.slug;
@@ -83,7 +83,7 @@ export default function GuideSidebar({ onNavigate }: GuideSidebarProps) {
             onChange={(event) => setQuery(event.target.value)}
             placeholder={`Search ${track.shortTitle.toLowerCase()} docs`}
             aria-label={`Search the ${track.title} guide`}
-            className="h-10 w-full rounded-lg border border-twiga-cream-dark bg-white/70 pl-9 pr-9 text-sm text-twiga-text placeholder:text-twiga-text-light focus:border-twiga-forest-light focus:outline-none focus:ring-2 focus:ring-twiga-forest-light/20"
+            className="h-10 w-full rounded-md border border-twiga-cream-dark bg-white/70 pl-9 pr-9 text-sm text-twiga-text placeholder:text-twiga-text-light focus:border-twiga-forest-light focus:outline-none focus:ring-2 focus:ring-twiga-forest-light/20"
           />
           {searching ? (
             <button
@@ -125,13 +125,13 @@ export default function GuideSidebar({ onNavigate }: GuideSidebarProps) {
                       setCollapsed((prev) => ({ ...prev, [key]: !isCollapsed }))
                     }
                     aria-expanded={!isCollapsed}
-                    className="group flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left transition-colors hover:bg-twiga-cream-mid"
+                    className="group flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left transition-colors hover:bg-twiga-cream-mid"
                   >
                     <section.icon
                       className={cn(
                         "size-4 shrink-0 transition-colors",
                         hasActive
-                          ? "text-twiga-amber"
+                          ? "text-twiga-red-dark"
                           : "text-twiga-forest-light",
                       )}
                       strokeWidth={1.75}
@@ -161,7 +161,7 @@ export default function GuideSidebar({ onNavigate }: GuideSidebarProps) {
                               className={cn(
                                 "relative -ml-[calc(0.625rem+1px)] flex items-center gap-2 border-l-2 py-1.5 pl-3 pr-2 text-sm transition-colors",
                                 isActive
-                                  ? "border-twiga-amber font-semibold text-twiga-forest"
+                                  ? "border-twiga-red font-semibold text-twiga-forest"
                                   : "border-transparent font-light text-twiga-text-muted hover:border-twiga-forest-light hover:text-twiga-forest",
                               )}
                             >
@@ -215,7 +215,7 @@ function SearchResults({
             href={page.href}
             onClick={onNavigate}
             aria-current={page.href === pathname ? "page" : undefined}
-            className="group block rounded-lg px-2.5 py-2 transition-colors hover:bg-white"
+            className="group block rounded-md px-2.5 py-2 transition-colors hover:bg-white"
           >
             <span className="flex items-center gap-2">
               <span className="min-w-0 flex-1 truncate text-sm font-medium text-twiga-forest">

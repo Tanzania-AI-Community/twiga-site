@@ -14,7 +14,7 @@ export default function GuideLandingPage() {
   return (
     <>
       <header className="max-w-2xl">
-        <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-twiga-amber">
+        <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-twiga-red-dark">
           Documentation
         </p>
         <h1 className="font-sans text-[clamp(2rem,3.6vw,2.7rem)] font-semibold leading-tight tracking-tight text-twiga-forest">
@@ -32,9 +32,9 @@ export default function GuideLandingPage() {
           <Link
             key={track.slug}
             href={track.href}
-            className="group flex flex-col rounded-2xl border-2 border-twiga-cream-dark bg-white px-6 py-7 transition-all hover:-translate-y-0.5 hover:border-twiga-forest-light hover:shadow-[0_4px_30px_rgba(26,61,43,0.08)]"
+            className="group flex flex-col rounded-lg border border-twiga-cream-dark bg-white px-6 py-7 transition-all hover:-translate-y-0.5 hover:border-twiga-forest-light hover:shadow-[0_4px_30px_rgba(26,61,43,0.08)]"
           >
-            <span className="mb-5 flex size-12 items-center justify-center rounded-xl bg-twiga-forest-pale text-twiga-forest">
+            <span className="mb-5 flex size-12 items-center justify-center rounded-md bg-twiga-forest-pale text-twiga-forest">
               <track.icon className="size-[22px]" strokeWidth={1.75} />
             </span>
             <span className="flex items-center gap-2 font-sans text-lg font-semibold tracking-tight text-twiga-forest">
