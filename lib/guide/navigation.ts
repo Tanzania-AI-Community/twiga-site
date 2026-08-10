@@ -1,10 +1,16 @@
 import {
+  BookOpen,
+  ClipboardCheck,
   Code2,
   GraduationCap,
   HeartHandshake,
+  LifeBuoy,
+  Lightbulb,
   Network,
+  NotebookPen,
   Rocket,
   ServerCog,
+  Users,
   Wrench,
   type LucideIcon,
 } from "lucide-react";
@@ -54,6 +60,8 @@ export const guideTracks: GuideTrack[] = [
     icon: GraduationCap,
     sections: [
       {
+        // Setup, plus the two cross-cutting habits every later section relies
+        // on: how to phrase a request, and how to check what comes back.
         title: "Getting Started",
         icon: Rocket,
         items: [
@@ -64,24 +72,189 @@ export const guideTracks: GuideTrack[] = [
               "What Twiga is, who it is for, and how this track is organised.",
           },
           {
-            title: "Quick Start",
-            href: "/guide/teachers/getting-started/quick-start",
-            summary: "Send your first message to Twiga in under five minutes.",
-          },
-          {
             title: "Registering on WhatsApp",
             href: "/guide/teachers/getting-started/registration",
-            summary: "Link your phone number and verify your teaching profile.",
+            summary:
+              "Send your first message, wait for approval, and finish setup on your phone.",
           },
           {
             title: "Choosing Your Subjects",
             href: "/guide/teachers/getting-started/subjects",
-            summary: "Tell Twiga which classes and subjects you teach.",
+            summary:
+              "Pick your classes and forms, and check the change actually saved.",
+          },
+          {
+            title: "Quick Start",
+            href: "/guide/teachers/getting-started/quick-start",
+            summary:
+              "One real request, end to end, so you can see what good looks like.",
+          },
+          {
+            title: "How to Ask Twiga",
+            href: "/guide/teachers/getting-started/how-to-ask",
+            summary:
+              "Subject, form, topic, format, audience — the details that decide every answer.",
+          },
+          {
+            title: "Checking Twiga's Answers",
+            href: "/guide/teachers/getting-started/checking-answers",
+            summary:
+              "The sixty-second check that catches wrong forms, wrong sources and invented facts.",
           },
           {
             title: "Frequently Asked Questions",
             href: "/guide/teachers/getting-started/faq",
             summary: "Costs, data usage, offline behaviour and account questions.",
+          },
+        ],
+      },
+      {
+        title: "Lesson Plans",
+        icon: NotebookPen,
+        items: [
+          {
+            title: "Requesting a Lesson Plan",
+            href: "/guide/teachers/lesson-plans/requesting",
+            summary:
+              "The five details Twiga needs, in one message, to skip the back and forth.",
+          },
+          {
+            title: "What's in a Twiga Lesson Plan",
+            href: "/guide/teachers/lesson-plans/anatomy",
+            summary:
+              "The sections you get, the sections you don't, and what to add for your plan book.",
+          },
+        ],
+      },
+      {
+        // The subject matter itself: what the syllabus contains and what the
+        // textbook says about it.
+        title: "Teaching Content",
+        icon: BookOpen,
+        items: [
+          {
+            title: "Finding What to Teach",
+            href: "/guide/teachers/teaching-content/what-to-teach",
+            summary:
+              "Topics, subtopics and where a lesson sits in the syllabus for your form.",
+          },
+          {
+            title: "Explaining Topics From the Textbook",
+            href: "/guide/teachers/teaching-content/topic-explanations",
+            summary:
+              "Get an accurate account of a concept, with its source, before you teach it.",
+          },
+        ],
+      },
+      {
+        // How to teach it, as opposed to what it is. The distinction is the
+        // single biggest lever a teacher has over the quality of a reply.
+        title: "Teaching Practice",
+        icon: Users,
+        items: [
+          {
+            title: "Ask How to Teach It, Not What It Is",
+            href: "/guide/teachers/teaching-practice/how-not-what",
+            summary:
+              "Ask for the words you will say in class and you get a script, not a syllabus.",
+          },
+          {
+            title: "Common Mistakes to Expect",
+            href: "/guide/teachers/teaching-practice/common-mistakes",
+            summary:
+              "Ask where your class will go wrong on a topic, and what to do about it.",
+          },
+          {
+            title: "Answering Difficult Student Questions",
+            href: "/guide/teachers/teaching-practice/difficult-questions",
+            summary:
+              "Get a careful answer, and the reasoning behind it, for questions that need handling.",
+          },
+          {
+            title: "Classroom Activities & Games",
+            href: "/guide/teachers/teaching-practice/activities-and-games",
+            summary:
+              "Turn a topic into something students do, not something they copy.",
+          },
+        ],
+      },
+      {
+        title: "Exams & Quizzes",
+        icon: ClipboardCheck,
+        items: [
+          {
+            title: "Quizzes, Exercises & Exit Tickets",
+            href: "/guide/teachers/assessment/quizzes-and-exercises",
+            summary:
+              "Short assessment in the chat in seconds — say the count, format and difficulty.",
+          },
+          {
+            title: "Full NECTA Mock Exams",
+            href: "/guide/teachers/assessment/mock-exams",
+            summary:
+              "A complete paper and marking scheme as PDFs, and the ten minutes it takes.",
+          },
+          {
+            title: "Marking Schemes & Answer Keys",
+            href: "/guide/teachers/assessment/marking-schemes",
+            summary:
+              "When a key comes automatically, when to ask for one, and why to check it first.",
+          },
+        ],
+      },
+      {
+        // Making do — no teaching aids, no printer, and a bot that sometimes
+        // will not produce the artefact it promised.
+        title: "Improvisation",
+        icon: Lightbulb,
+        items: [
+          {
+            title: "Teaching With No Materials",
+            href: "/guide/teachers/improvisation/no-materials",
+            summary:
+              "Say you have no aids and Twiga stops assuming a globe and a projector.",
+          },
+          {
+            title: "Working From Your Own Notes",
+            href: "/guide/teachers/improvisation/your-own-notes",
+            summary:
+              "Paste the pages you teach from and get material built on your own examples.",
+          },
+          {
+            title: "Turning Chat Text Into Printables",
+            href: "/guide/teachers/improvisation/printables",
+            summary:
+              "Twiga replies in chat — here is how to get it onto paper for your class.",
+          },
+        ],
+      },
+      {
+        title: "Troubleshooting & Limits",
+        icon: LifeBuoy,
+        items: [
+          {
+            title: "When Twiga Doesn't Reply",
+            href: "/guide/teachers/troubleshooting/no-reply",
+            summary:
+              "Tell a slow reply from a lost one, and the sentence that gets your content anyway.",
+          },
+          {
+            title: "What Twiga Cannot Do",
+            href: "/guide/teachers/troubleshooting/limits",
+            summary:
+              "Voice notes, photos, file downloads, subject coverage and school levels.",
+          },
+          {
+            title: "Language: English & Kiswahili",
+            href: "/guide/teachers/troubleshooting/language",
+            summary:
+              "Which language to write in, and what to proofread in Swahili replies.",
+          },
+          {
+            title: "Fixing Your Profile",
+            href: "/guide/teachers/troubleshooting/profile",
+            summary:
+              "Change your subjects and school details, and confirm the change was saved.",
           },
         ],
       },
