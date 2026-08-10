@@ -6,104 +6,77 @@ import {
   ChatSample,
   GuideCard,
   GuideHeading,
-  Step,
-  Steps,
 } from "@/components/guide/content";
 import { guideTracks } from "@/lib/guide/navigation";
 
 export const metadata: Metadata = {
   title: "Introduction",
-  description:
-    "What Twiga is, who it is for, and how the teachers' guide is organised.",
+  description: "What Twiga is and how to start using it.",
 };
 
 export default function TeachersIntroPage() {
-  const gettingStarted =
-    guideTracks[0].sections[0].items.filter(
-      (item) => item.href !== "/guide/teachers",
-    ) ?? [];
+  const gettingStarted = guideTracks[0].sections[0].items.filter(
+    (item) => item.href !== "/guide/teachers",
+  );
 
   return (
     <>
       <GuideHeading
         eyebrow="For Teachers"
         title="Introduction"
-        description="Twiga is an AI teaching companion built for Tanzanian educators. It lives inside WhatsApp, speaks Swahili and English, and knows the TIE curriculum, so there is nothing new to install and nothing new to learn."
+        description="Twiga is a teaching assistant that lives inside WhatsApp."
       />
 
       <p>
-        This track covers what you need to get going as a teacher — registering
-        on WhatsApp, telling Twiga what you teach, and sending your first real
-        request. If you came here to run or extend the code instead, switch to
-        the <a href="/guide/developers">developers track</a>.
+        You send it a message. It sends back something you can use in class
+        tomorrow. A lesson plan, an explanation, a set of questions, a marking
+        scheme.
+      </p>
+      <p>
+        It knows the Tanzanian secondary syllabus and the TIE textbooks, and it
+        works in English and in Kiswahili. There is nothing to install and
+        nothing new to learn. If you can send a WhatsApp message, you can use
+        it.
       </p>
 
-      <h2>What Twiga does</h2>
+      <h2 id="what-it-looks-like">What it looks like</h2>
       <p>
-        Twiga turns a question typed into WhatsApp into something you can take
-        straight into a classroom: a lesson outline, a set of graded exercises,
-        an explanation you can read aloud, or a worksheet to print.
+        You write in your own words. You do not need commands or any special
+        way of typing.
       </p>
 
       <ChatSample
         messages={[
           {
             from: "teacher",
-            text: "Generate 10 exercise questions on fractions for Grade 4 students.",
+            text: "im teaching geography form 1 tomorrow, map reading, title is longitudes and latitudes. 40 min period, short plan pls",
           },
           {
             from: "twiga",
-            text: "Here are 10 fraction exercises for Grade 4:\n1) What is ½ + ¼?\n2) Simplify 4/8 to its lowest form\n3) Which is larger: ⅓ or ¼?",
-          },
-          {
-            from: "teacher",
-            text: "Perfect! Can you make word problems using these?",
+            text: "Lesson Title: Longitudes and Latitudes\nClass: Form 1  •  Subject: Geography\nTime: 40 minutes\n\nLesson Flow:\n1. Introduction (8 min) ask which way is north from the door, then draw one horizontal and one vertical line on the board\n2. Development (22 min) latitude runs east to west, longitude runs north to south\n3. Conclusion (10 min) students give the coordinates of two towns from the board grid",
           },
         ]}
       />
 
-      <Callout type="tip" title="It works on the phone you already have">
-        Twiga runs entirely over WhatsApp. No app download, no laptop, and no
-        data bundle beyond what a normal chat costs.
+      <Callout type="tip" title="It runs on the phone you already have">
+        Everything happens in WhatsApp. No app to download, no laptop, and no
+        more data than a normal chat costs.
       </Callout>
 
-      <h2>What this track covers</h2>
-      <ul>
-        <li>
-          <strong>Quick Start</strong> — one conversation, end to end, so you
-          can see what a good request looks like.
-        </li>
-        <li>
-          <strong>Registering on WhatsApp</strong> — linking the number you
-          teach with and verifying your profile.
-        </li>
-        <li>
-          <strong>Choosing Your Subjects</strong> — the classes and form levels
-          Twiga keeps its answers aligned to.
-        </li>
-        <li>
-          <strong>Frequently Asked Questions</strong> — costs, data usage and
-          account questions.
-        </li>
-      </ul>
+      <h2 id="what-to-check">What to check</h2>
+      <p>
+        Twiga is useful, and it is not always right. It can name the wrong form
+        level, cite the wrong chapter, or say it saved something it did not
+        save. Read what it sends before you take it to class. This guide shows
+        you where it slips and what to do about it.
+      </p>
 
-      <h2>How to get started</h2>
-      <Steps>
-        <Step title="Register your number">
-          Send a message to the Twiga WhatsApp number and answer three short
-          questions about the classes you teach.
-        </Step>
-        <Step title="Pick your subjects">
-          Twiga uses your subjects and form levels to keep answers aligned with
-          the syllabus you actually teach.
-        </Step>
-        <Step title="Ask for something real">
-          Skip the test question. Ask for the lesson you are teaching tomorrow —
-          the answers get sharper the more specific you are.
-        </Step>
-      </Steps>
+      <h2 id="where-to-start">Where to start</h2>
+      <p>
+        If you have five minutes, read Quick Start. It shows one whole
+        conversation from the first message to a finished lesson plan.
+      </p>
 
-      <h2>Continue reading</h2>
       <CardGrid>
         {gettingStarted.map((item) => (
           <GuideCard

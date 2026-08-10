@@ -11,10 +11,11 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { Menu, X } from "lucide-react";
+import clsx from "clsx";
 
 import { cn } from "@/lib/utils";
 import { whatsappLink } from "@/lib/whatsapp";
-import { getGuideTrack, normalizeGuidePath } from "@/lib/guide/navigation";
+import { getGuideTrack } from "@/lib/guide/navigation";
 import { findGuideVideo } from "@/remotion/registry";
 import GuideSidebar from "./GuideSidebar";
 import GuideToc from "./GuideToc";
@@ -26,133 +27,118 @@ import GuideVideoChapters from "./GuideVideoChapters";
 import { guideColumn } from "./layout";
 
 /** Header height, and the distance it travels when it hides. */
-const HEADER_HEIGHT = "4rem";
-const HEADER_HEIGHT_PX = 64;
-/** Ignore scroll jitter below this, so the header does not flicker. */
-const SCROLL_THRESHOLD = 8;
-/** Always keep the header out near the top of the page. */
+const HEADER_HEIGHT = "64px";
+/**
+ * The header only ever hides below this point. It is what keeps the sticky
+ * header's band of the document from showing as an empty gap at the top of
+ * the page: above the zone the header is always in place, filling it.
+ */
 const REVEAL_ZONE = 96;
-/** Sitting still this long also tucks the header away. */
-const IDLE_DELAY = 10_000;
-/** Anything here counts as the reader still being present. */
-const ACTIVITY_EVENTS = [
-  "pointermove",
-  "pointerdown",
-  "keydown",
-  "wheel",
-  "touchstart",
-  "scroll",
-  "focusin",
-] as const;
+/**
+ * Distance the reader has to travel *since reversing direction* before the
+ * header responds. Asymmetric on purpose — coming back for the nav should
+ * feel immediate, while hiding it should take a deliberate scroll. Anchoring
+ * to the reversal point rather than to the last frame is what stops trackpad
+ * jitter and rubber-banding from toggling the header.
+ */
+const HIDE_AFTER = 32;
+const SHOW_AFTER = 12;
 
 export default function GuideShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
   const [headerTucked, setHeaderTucked] = useState(false);
-  const [idle, setIdle] = useState(false);
-  const lastScrollY = useRef(0);
-  const idleRef = useRef(false);
-  /** Set while closing the header's gap, so that scroll is not read as intent. */
-  const adjustingScroll = useRef(false);
+  /** Reveal without the slide — see the reveal-zone branch below. */
+  const [snapHeaderBack, setSnapHeaderBack] = useState(false);
+  const resetScrollTracking = useRef<() => void>(() => {});
 
-  // /guide is the track chooser — it renders full width, with no doc chrome.
   const track = getGuideTrack(pathname);
-  const isLanding = !track && normalizeGuidePath(pathname) === "/guide";
   const video = findGuideVideo(pathname);
+
+  /**
+   * Hide the header on the way down and bring it back on the way up, so
+   * reading gets the full viewport. The sticky columns follow it through
+   * --guide-header-h rather than each tracking scroll themselves.
+   *
+   * Nothing here ever scrolls the page — the reader's scroll position is
+   * theirs. The header is only allowed to hide past REVEAL_ZONE, which is
+   * what keeps its sticky band from ever showing as a gap at the top.
+   */
+  useEffect(() => {
+    let frame = 0;
+    let lastY = window.scrollY;
+    /** Where the current direction of travel began. */
+    let anchorY = lastY;
+    let direction = 0;
+
+    const measure = () => {
+      frame = 0;
+      const y = Math.max(0, window.scrollY);
+      const delta = y - lastY;
+      if (delta === 0) return;
+
+      const heading = delta > 0 ? 1 : -1;
+      // A reversal restarts the count, so the reader has to commit to the new
+      // direction before the header moves.
+      if (heading !== direction) {
+        direction = heading;
+        anchorY = lastY;
+      }
+      lastY = y;
+
+      if (y <= REVEAL_ZONE) {
+        anchorY = y;
+        // Back at the top, the header's own band of the document is on screen
+        // again. Sliding it back in over 300ms would leave that band empty for
+        // the length of the slide — visible as a gap after a jump straight to
+        // the top — so at this end of the page the header just reappears.
+        setSnapHeaderBack(true);
+        setHeaderTucked(false);
+        return;
+      }
+
+      const travelled = y - anchorY;
+      if (heading > 0) {
+        if (travelled >= HIDE_AFTER) {
+          setSnapHeaderBack(false);
+          setHeaderTucked(true);
+        }
+      } else if (-travelled >= SHOW_AFTER) {
+        setSnapHeaderBack(false);
+        setHeaderTucked(false);
+      }
+    };
+
+    // Reads are batched into a frame: scroll fires far more often than the
+    // header can meaningfully change, and one measurement per paint is enough.
+    const onScroll = () => {
+      if (!frame) frame = requestAnimationFrame(measure);
+    };
+
+    resetScrollTracking.current = () => {
+      lastY = anchorY = window.scrollY;
+      direction = 0;
+    };
+
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      if (frame) cancelAnimationFrame(frame);
+    };
+  }, []);
 
   // Every guide page opens on its video, so a new page always starts from the
   // top rather than wherever the last one was left.
   useEffect(() => {
     setMenuOpen(false);
     setHeaderTucked(false);
-    setIdle(false);
-    idleRef.current = false;
+    setSnapHeaderBack(true);
     window.scrollTo({ top: 0, behavior: "instant" });
-    lastScrollY.current = 0;
+    resetScrollTracking.current();
   }, [pathname]);
 
-  /**
-   * Hide the header on the way down and bring it back on the way up, so
-   * reading gets the full viewport. The sticky columns follow it through
-   * --guide-header-h rather than each tracking scroll themselves.
-   */
-  useEffect(() => {
-    const onScroll = () => {
-      if (adjustingScroll.current) return;
-      const y = window.scrollY;
-      const delta = y - lastScrollY.current;
-      // Below the threshold this is jitter, and reacting to it would make the
-      // header flicker; leaving lastScrollY alone lets small moves accumulate.
-      if (Math.abs(delta) < SCROLL_THRESHOLD) return;
-      lastScrollY.current = y;
-      setHeaderTucked(delta > 0 && y > REVEAL_ZONE);
-    };
-
-    lastScrollY.current = window.scrollY;
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
-
-  /**
-   * Reading without touching anything also hands the header's space back;
-   * the next sign of life brings it straight back.
-   */
-  useEffect(() => {
-    let timer: ReturnType<typeof setTimeout>;
-
-    const sleepLater = () => {
-      clearTimeout(timer);
-      timer = setTimeout(() => {
-        idleRef.current = true;
-        setIdle(true);
-      }, IDLE_DELAY);
-    };
-
-    const wake = () => {
-      // Guarded so a mouse sweep does not queue a state update per pixel.
-      if (idleRef.current) {
-        idleRef.current = false;
-        setIdle(false);
-      }
-      sleepLater();
-    };
-
-    ACTIVITY_EVENTS.forEach((event) =>
-      window.addEventListener(event, wake, { passive: true }),
-    );
-    sleepLater();
-
-    return () => {
-      clearTimeout(timer);
-      ACTIVITY_EVENTS.forEach((event) =>
-        window.removeEventListener(event, wake),
-      );
-    };
-  }, []);
-
   // The drawer sits under the header, so the header has to stay put with it open.
-  const headerHidden = (headerTucked || idle) && !menuOpen;
-
-  /**
-   * The header is sticky, so it keeps its band of the document even when it
-   * slides away. Past that band the empty space is already scrolled off, but
-   * at the top of the page it would show as a gap — so close it by scrolling
-   * the band out of view, and give it back when the header returns.
-   */
-  useEffect(() => {
-    if (window.scrollY > HEADER_HEIGHT_PX) return;
-    const target = headerHidden ? HEADER_HEIGHT_PX : 0;
-    if (Math.abs(window.scrollY - target) < 1) return;
-
-    adjustingScroll.current = true;
-    window.scrollTo({ top: target, behavior: "smooth" });
-    const settled = setTimeout(() => {
-      adjustingScroll.current = false;
-      lastScrollY.current = window.scrollY;
-    }, 600);
-
-    return () => clearTimeout(settled);
-  }, [headerHidden]);
+  const headerHidden = headerTucked && !menuOpen;
 
   // Lock the page behind the drawer and allow Escape to dismiss it.
   useEffect(() => {
@@ -173,10 +159,18 @@ export default function GuideShell({ children }: { children: ReactNode }) {
 
   return (
     <div
-      className="guide-shell min-h-screen bg-twiga-cream bg-twiga-texture text-twiga-text"
+      // Not cn(): tailwind-merge reads bg-twiga-texture — a plain CSS class for
+      // the paper grain, not a Tailwind colour — as conflicting with
+      // bg-twiga-cream and would drop the background colour.
+      className={clsx(
+        "guide-shell min-h-screen bg-twiga-cream bg-twiga-texture text-twiga-text",
+        // Opening the drawer must not slide the header back in — the drawer
+        // itself is already animating from the same edge.
+        (snapHeaderBack || menuOpen) && "guide-shell--snap",
+      )}
       style={
         {
-          "--guide-header-h": headerHidden ? "0rem" : HEADER_HEIGHT,
+          "--guide-header-h": headerHidden ? "0px" : HEADER_HEIGHT,
         } as CSSProperties
       }
     >
@@ -192,10 +186,7 @@ export default function GuideShell({ children }: { children: ReactNode }) {
             onClick={() => setMenuOpen(true)}
             aria-label="Open guide navigation"
             aria-expanded={menuOpen}
-            className={cn(
-              "-ml-1 flex size-9 shrink-0 items-center justify-center rounded-md text-twiga-forest transition-colors hover:bg-twiga-cream-mid lg:hidden",
-              isLanding && "hidden",
-            )}
+            className="-ml-1 flex size-9 shrink-0 items-center justify-center rounded-md text-twiga-forest transition-colors hover:bg-twiga-cream-mid lg:hidden"
           >
             <Menu className="size-5" strokeWidth={1.75} />
           </button>
@@ -216,12 +207,13 @@ export default function GuideShell({ children }: { children: ReactNode }) {
               Twiga
             </span>
           </Link>
-          <Link
-            href="/guide"
-            className="hidden rounded-full border border-twiga-cream-dark bg-white/60 px-2.5 py-1 text-[0.6875rem] font-semibold uppercase tracking-wider text-twiga-text-muted transition-colors hover:border-twiga-forest-light hover:text-twiga-forest sm:inline-block"
-          >
-            {track ? `Guide · ${track.shortTitle}` : "Guide"}
-          </Link>
+          {/* Which guide you are in. A label, not a link — there is no track
+              chooser to go back to. */}
+          {track ? (
+            <span className="hidden rounded-full border border-twiga-cream-dark bg-white/60 px-2.5 py-1 text-[0.6875rem] font-semibold uppercase tracking-wider text-twiga-text-muted sm:inline-block">
+              {`Guide · ${track.shortTitle}`}
+            </span>
+          ) : null}
 
           <div className="flex-1" />
 
@@ -233,20 +225,12 @@ export default function GuideShell({ children }: { children: ReactNode }) {
               Home
             </Link>
             <Link
-              href="https://github.com/Tanzania-AI-Community/twiga"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="hidden text-sm font-medium text-twiga-text-muted transition-colors hover:text-twiga-forest sm:inline"
-            >
-              GitHub ↗
-            </Link>
-            <Link
               href={whatsappLink()}
               target="_blank"
               rel="noopener noreferrer"
               className="rounded-md bg-twiga-forest px-3.5 py-2 text-sm font-semibold text-twiga-cream transition-colors hover:bg-twiga-forest-mid sm:px-[18px]"
             >
-              Register Free
+              Chat with Twiga
             </Link>
           </nav>
         </div>
@@ -297,45 +281,42 @@ export default function GuideShell({ children }: { children: ReactNode }) {
         </div>
       </div>
 
-      {isLanding ? (
-        <main className="mx-auto w-full max-w-[64rem] px-5 py-12 sm:px-8 sm:py-16">
-          {children}
-        </main>
-      ) : (
-        <GuideVideoProvider video={video}>
-          <div className="mx-auto flex max-w-[1600px] items-start">
-            {/* Desktop sidebar. Sticks below the header and reclaims that
-                space as the header tucks away — driven by top/height rather
-                than padding, since the column already sits under the header
-                in normal flow. */}
-            <aside className="sticky top-[var(--guide-header-h)] hidden h-[calc(100vh-var(--guide-header-h))] w-[17rem] shrink-0 border-r border-twiga-cream-dark transition-[top,height] duration-300 ease-out lg:block">
-              <GuideSidebar />
-            </aside>
+      <GuideVideoProvider video={video}>
+        <div className="mx-auto flex max-w-[1600px] items-start">
+          {/* Desktop sidebar. Sticks below the header and reclaims that
+              space as the header tucks away — driven by top/height rather
+              than padding, since the column already sits under the header
+              in normal flow. --guide-header-h is a registered property that
+              animates on .guide-shell, so top and height interpolate in
+              lockstep with the header instead of each running their own
+              transition and drifting out of sync with it. */}
+          <aside className="sticky top-[var(--guide-header-h)] hidden h-[calc(100vh-var(--guide-header-h))] w-[17rem] shrink-0 border-r border-twiga-cream-dark lg:block">
+            <GuideSidebar />
+          </aside>
 
-            {/* The video sits flush at the top of <main> and spans its full
-                width; the document proper starts below it, in the reading
-                column. */}
-            <main className="min-w-0 flex-1 border-twiga-cream-dark bg-white xl:border-r">
-              <GuideVideoStage />
-              <div className={cn(guideColumn, "py-9 sm:py-12")}>
-                <GuideBreadcrumbs />
-                <article id="guide-article" className="guide-prose">
-                  {children}
-                </article>
-                <GuidePager />
-              </div>
-            </main>
+          {/* The video sits flush at the top of <main> and spans its full
+              width; the document proper starts below it, in the reading
+              column. */}
+          <main className="min-w-0 flex-1 border-twiga-cream-dark bg-white xl:border-r">
+            <GuideVideoStage />
+            <div className={cn(guideColumn, "py-9 sm:py-12")}>
+              <GuideBreadcrumbs />
+              <article id="guide-article" className="guide-prose">
+                {children}
+              </article>
+              <GuidePager />
+            </div>
+          </main>
 
-            {/* Video segments where there is a video, page headings otherwise */}
-            {/* No horizontal padding: the rail's rows carry their own, so the
-                active row's highlight can run the full width of the column
-                instead of stopping short of it. */}
-            <aside className="sticky top-[var(--guide-header-h)] hidden h-[calc(100vh-var(--guide-header-h))] w-[17rem] shrink-0 overflow-y-auto pb-10 pt-4 transition-[top,height] duration-300 ease-out xl:block">
-              {video ? <GuideVideoChapters /> : <GuideToc />}
-            </aside>
-          </div>
-        </GuideVideoProvider>
-      )}
+          {/* Video segments where there is a video, page headings otherwise */}
+          {/* No horizontal padding: the rail's rows carry their own, so the
+              active row's highlight can run the full width of the column
+              instead of stopping short of it. */}
+          <aside className="sticky top-[var(--guide-header-h)] hidden h-[calc(100vh-var(--guide-header-h))] w-[17rem] shrink-0 overflow-y-auto pb-10 pt-4 xl:block">
+            {video ? <GuideVideoChapters /> : <GuideToc />}
+          </aside>
+        </div>
+      </GuideVideoProvider>
     </div>
   );
 }

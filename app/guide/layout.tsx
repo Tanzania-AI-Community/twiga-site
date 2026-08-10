@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
+import GuideHashScroll from "@/components/guide/GuideHashScroll";
 import GuideShell from "@/components/guide/GuideShell";
 
 export const metadata: Metadata = {
@@ -13,5 +14,10 @@ export const metadata: Metadata = {
 };
 
 export default function GuideLayout({ children }: { children: ReactNode }) {
-  return <GuideShell>{children}</GuideShell>;
+  return (
+    <>
+      <GuideHashScroll />
+      <GuideShell>{children}</GuideShell>
+    </>
+  );
 }

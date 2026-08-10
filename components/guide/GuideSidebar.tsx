@@ -8,11 +8,15 @@ import { ChevronRight, CornerDownLeft, Search, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   getGuideTrack,
-  guidePages,
   guideTracks,
   normalizeGuidePath,
-  type FlatGuidePage,
 } from "@/lib/guide/navigation";
+import {
+  highlightParts,
+  searchGuide,
+  tokenize,
+  type GuideSearchResult,
+} from "@/lib/guide/search";
 
 type GuideSidebarProps = {
   /** Called after a link is activated so the mobile drawer can close itself. */
@@ -26,52 +30,23 @@ export default function GuideSidebar({ onNavigate }: GuideSidebarProps) {
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
 
   // Search stays inside the active track so results never cross audiences.
-  const results = useMemo<FlatGuidePage[]>(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return [];
-    return guidePages
-      .filter((page) => page.track === track.slug)
-      .filter((page) =>
-        `${page.title} ${page.section} ${page.summary ?? ""}`
-          .toLowerCase()
-          .includes(q),
-      )
-      .slice(0, 12);
-  }, [query, track.slug]);
+  // It reads the generated content index as well as the sidebar manifest, so
+  // a phrase buried in the middle of a page is findable and the result points
+  // at the section it was found in rather than at the top of the page.
+  const results = useMemo<GuideSearchResult[]>(
+    () => searchGuide(query, track.slug),
+    [query, track.slug],
+  );
+  const tokens = useMemo(() => tokenize(query), [query]);
 
   const searching = query.trim().length > 0;
 
   return (
     <div className="flex h-full flex-col">
-      <div className="sticky top-0 z-10 space-y-3 bg-twiga-cream/95 px-4 pb-3 pt-4 backdrop-blur-sm lg:px-5">
-        <div
-          role="tablist"
-          aria-label="Guide track"
-          className="flex gap-1 rounded-md border border-twiga-cream-dark bg-white/60 p-1"
-        >
-          {guideTracks.map((entry) => {
-            const isActive = entry.slug === track.slug;
-            return (
-              <Link
-                key={entry.slug}
-                href={entry.href}
-                role="tab"
-                aria-selected={isActive}
-                onClick={onNavigate}
-                className={cn(
-                  "flex flex-1 items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-[0.8125rem] font-semibold transition-colors",
-                  isActive
-                    ? "bg-twiga-forest text-twiga-cream"
-                    : "text-twiga-text-muted hover:bg-twiga-cream-mid hover:text-twiga-forest",
-                )}
-              >
-                <entry.icon className="size-3.5 shrink-0" strokeWidth={2} />
-                {entry.shortTitle}
-              </Link>
-            );
-          })}
-        </div>
-
+      {/* No track switcher: each track is its own destination in the site
+          header, so offering the other audience mid-read only muddied which
+          guide you were in. */}
+      <div className="sticky top-0 z-10 bg-twiga-cream/95 px-4 pb-3 pt-4 backdrop-blur-sm lg:px-5">
         <div className="relative">
           <Search
             className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-twiga-text-light"
@@ -105,6 +80,7 @@ export default function GuideSidebar({ onNavigate }: GuideSidebarProps) {
         {searching ? (
           <SearchResults
             results={results}
+            tokens={tokens}
             pathname={pathname}
             onNavigate={onNavigate}
           />
@@ -191,44 +167,75 @@ export default function GuideSidebar({ onNavigate }: GuideSidebarProps) {
 
 function SearchResults({
   results,
+  tokens,
   pathname,
   onNavigate,
 }: {
-  results: FlatGuidePage[];
+  results: GuideSearchResult[];
+  /** Query words, used to mark the matching run inside the snippet. */
+  tokens: string[];
   pathname: string;
   onNavigate?: () => void;
 }) {
   if (results.length === 0) {
     return (
       <p className="px-3 py-6 text-sm font-light leading-relaxed text-twiga-text-muted">
-        No pages matched that search in this track. Try a shorter phrase, or
-        switch tracks above.
+        No pages matched that search in this guide. Try a shorter phrase.
       </p>
     );
   }
 
   return (
     <ul className="space-y-1 pt-1">
-      {results.map((page) => (
-        <li key={page.href}>
+      {results.map((result) => (
+        <li key={result.page.href}>
           <Link
-            href={page.href}
+            href={result.href}
             onClick={onNavigate}
-            aria-current={page.href === pathname ? "page" : undefined}
+            aria-current={result.page.href === pathname ? "page" : undefined}
             className="group block rounded-md px-2.5 py-2 transition-colors hover:bg-white"
           >
             <span className="flex items-center gap-2">
               <span className="min-w-0 flex-1 truncate text-sm font-medium text-twiga-forest">
-                {page.title}
+                {result.page.title}
               </span>
               <CornerDownLeft
                 className="size-3.5 shrink-0 text-twiga-text-light opacity-0 transition-opacity group-hover:opacity-100"
                 strokeWidth={2}
               />
             </span>
-            <span className="mt-0.5 block truncate text-xs font-light text-twiga-text-muted">
-              {page.section}
+            {/* The heading sits beside the section so it is obvious the link
+                lands inside the page rather than at the top of it. */}
+            <span className="mt-0.5 flex items-center gap-1 text-xs font-light text-twiga-text-muted">
+              <span className="min-w-0 truncate">{result.page.section}</span>
+              {result.headingText ? (
+                <>
+                  <ChevronRight
+                    className="size-3 shrink-0 text-twiga-text-light"
+                    strokeWidth={2.25}
+                  />
+                  <span className="min-w-0 flex-1 truncate text-twiga-forest-mid">
+                    {result.headingText}
+                  </span>
+                </>
+              ) : null}
             </span>
+            {result.snippet ? (
+              <span className="mt-1 line-clamp-2 text-xs font-light leading-relaxed text-twiga-text-light">
+                {highlightParts(result.snippet, tokens).map((part, index) =>
+                  part.hit ? (
+                    <mark
+                      key={index}
+                      className="rounded-[2px] bg-twiga-forest-pale px-px text-twiga-forest"
+                    >
+                      {part.text}
+                    </mark>
+                  ) : (
+                    <span key={index}>{part.text}</span>
+                  ),
+                )}
+              </span>
+            ) : null}
           </Link>
         </li>
       ))}

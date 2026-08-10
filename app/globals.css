@@ -347,7 +347,34 @@
   @apply absolute bottom-[-1.25rem] left-[0.84rem] top-8 w-px bg-twiga-cream-dark;
 }
 
+/* How far the sticky guide header currently intrudes on the viewport. The
+   sidebar and TOC rails derive their `top` and `height` from it, so they give
+   back the header's space as it slides away. Registering it as a <length>
+   makes it animatable, which is the point: one transition on the shell drives
+   the header's own transform *and* both rails, so they cannot drift apart the
+   way three independent transitions can. The initial value has to be
+   computationally independent, hence px rather than rem. */
+@property --guide-header-h {
+  syntax: "<length>";
+  inherits: true;
+  initial-value: 64px;
+}
+
+.guide-shell {
+  transition: --guide-header-h 300ms ease-out;
+}
+
+/* Put the header back in place with no slide. Used where an animation would
+   read as a glitch rather than as motion: arriving at the top of the page,
+   where the header's own band is on screen and would otherwise sit empty for
+   the length of the slide, and opening the mobile drawer. */
+.guide-shell--snap,
+.guide-shell--snap > header {
+  transition-duration: 0s;
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .guide-shell,
   .guide-shell *,
   .guide-shell *::before,
   .guide-shell *::after {

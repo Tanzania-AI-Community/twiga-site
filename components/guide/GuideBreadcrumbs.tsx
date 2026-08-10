@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ChevronRight } from "lucide-react";
 
-import { findGuidePage, getGuideTrack, guideRoot } from "@/lib/guide/navigation";
+import { findGuidePage, getGuideTrack } from "@/lib/guide/navigation";
 
 export default function GuideBreadcrumbs() {
   const pathname = usePathname();
@@ -13,46 +13,30 @@ export default function GuideBreadcrumbs() {
 
   if (!page || !track) return null;
 
-  const isTrackIndex = page.href === track.href;
+  // The trail starts at the track, not at /guide — there is no chooser above
+  // it to walk back to. On the track's own index that leaves a single crumb
+  // repeating the heading right below it, so there is nothing worth showing.
+  if (page.href === track.href) return null;
 
   return (
     <nav aria-label="Breadcrumb" className="mb-4">
       <ol className="flex flex-wrap items-center gap-1 text-xs font-medium text-twiga-text-light">
         <li>
           <Link
-            href={guideRoot}
+            href={track.href}
             className="transition-colors hover:text-twiga-forest"
           >
-            Guide
+            {track.title}
           </Link>
         </li>
         <li aria-hidden>
           <ChevronRight className="size-3" strokeWidth={2.5} />
         </li>
-        <li>
-          {isTrackIndex ? (
-            <span className="text-twiga-forest">{track.shortTitle}</span>
-          ) : (
-            <Link
-              href={track.href}
-              className="transition-colors hover:text-twiga-forest"
-            >
-              {track.shortTitle}
-            </Link>
-          )}
+        <li className="text-twiga-text-muted">{page.section}</li>
+        <li aria-hidden>
+          <ChevronRight className="size-3" strokeWidth={2.5} />
         </li>
-        {isTrackIndex ? null : (
-          <>
-            <li aria-hidden>
-              <ChevronRight className="size-3" strokeWidth={2.5} />
-            </li>
-            <li className="text-twiga-text-muted">{page.section}</li>
-            <li aria-hidden>
-              <ChevronRight className="size-3" strokeWidth={2.5} />
-            </li>
-            <li className="text-twiga-forest">{page.title}</li>
-          </>
-        )}
+        <li className="text-twiga-forest">{page.title}</li>
       </ol>
     </nav>
   );
