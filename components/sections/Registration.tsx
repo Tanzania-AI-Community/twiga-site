@@ -1,59 +1,23 @@
-"use client";
+import Link from "next/link";
+import { ShieldCheck } from "lucide-react";
 
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
-import { toast } from "sonner";
-import { z } from "zod";
-import { useState, useTransition } from "react";
-import { submitRegistration } from "@/lib/actions";
-import { Button } from "@/components/ui/button";
+import WhatsAppIcon from "@/components/icons/WhatsAppIcon";
 import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
-import { CheckCircle } from "lucide-react";
-
-const FormSchema = z.object({
-  fullName: z.string().min(2, {
-    message: "Full name must be at least 2 characters.",
-  }),
-  schoolName: z.string().min(2, {
-    message: "School name must be at least 2 characters.",
-  }),
-  whatsappNumber: z
-    .string()
-    .min(10, {
-      message: "Please enter a valid WhatsApp number.",
-    })
-    .regex(/^(255|0)[67]\d{8}$/, {
-      message:
-        "Please enter a valid Tanzanian phone number (255XXXXXXXXX or 0XXXXXXXXX).",
-    })
-    .transform((val) => {
-      if (val.startsWith("0")) {
-        return "255" + val.slice(1);
-      }
-      return val;
-    }),
-});
-
-type FormData = z.infer<typeof FormSchema>;
+  TWIGA_WHATSAPP_GREETING,
+  formatWhatsappNumber,
+  whatsappLink,
+} from "@/lib/whatsapp";
 
 const steps = [
   {
     n: 1,
-    title: "Fill in your details",
-    desc: "Your name, school, and Tanzanian WhatsApp number.",
+    title: "Tap the button",
+    desc: "WhatsApp opens with your first message to Twiga already written.",
   },
   {
     n: 2,
-    title: "Receive your activation link",
-    desc: "We'll send it directly to your WhatsApp within minutes.",
+    title: "Send it and answer three questions",
+    desc: "Your name, your school, and the subjects you teach.",
   },
   {
     n: 3,
@@ -62,90 +26,8 @@ const steps = [
   },
 ];
 
-const inputClassName =
-  "border-[1.5px] border-twiga-cream-dark bg-twiga-cream text-twiga-text transition-colors focus-visible:border-twiga-forest focus-visible:ring-twiga-forest/20 focus-visible:bg-white";
-
 export default function Registration() {
-  const [isPending, startTransition] = useTransition();
-  const [submitStatus, setSubmitStatus] = useState<
-    "idle" | "success" | "error"
-  >("idle");
-
-  const form = useForm<FormData>({
-    resolver: zodResolver(FormSchema),
-    defaultValues: {
-      fullName: "",
-      schoolName: "",
-      whatsappNumber: "",
-    },
-  });
-
-  const onSubmit = (data: FormData) => {
-    startTransition(async () => {
-      try {
-        const formData = new FormData();
-        formData.append("fullName", data.fullName);
-        formData.append("schoolName", data.schoolName);
-        formData.append("whatsappNumber", data.whatsappNumber);
-
-        const result = await submitRegistration(formData);
-
-        if (result.success) {
-          setSubmitStatus("success");
-          form.reset();
-          toast.success("Registration Successful!", {
-            description:
-              "We'll get back to you when your application is approved.",
-          });
-        } else {
-          setSubmitStatus("error");
-          toast.error("Registration Failed", {
-            description:
-              result.error ||
-              "Please try again or contact support if the problem persists.",
-          });
-        }
-      } catch {
-        setSubmitStatus("error");
-        toast.error("Registration Failed", {
-          description:
-            "Please try again or contact support if the problem persists.",
-        });
-      }
-    });
-  };
-
-  if (submitStatus === "success") {
-    return (
-      <section
-        id="register"
-        className="bg-twiga-cream-mid px-6 py-20 md:px-8 md:py-24"
-      >
-        <div className="mx-auto max-w-xl">
-          <div className="rounded-2xl border border-twiga-cream-dark bg-white px-8 py-12 text-center shadow-sm">
-            <CheckCircle
-              className="mx-auto mb-4 size-16 text-twiga-forest-light"
-              strokeWidth={1.25}
-            />
-            <h3 className="font-display text-2xl text-twiga-forest">
-              Registration Successful!
-            </h3>
-            <p className="mt-3 font-light leading-relaxed text-twiga-text-muted">
-              Thank you for joining Twiga! We&apos;ll get back to you when your
-              application is approved.
-            </p>
-            <Button
-              onClick={() => setSubmitStatus("idle")}
-              variant="outline"
-              className="mt-8 border-twiga-forest text-twiga-forest hover:bg-twiga-forest-pale"
-            >
-              Register Another Teacher
-            </Button>
-          </div>
-        </div>
-      </section>
-    );
-  }
+  const href = whatsappLink();
 
   return (
     <section
@@ -155,15 +37,15 @@ export default function Registration() {
       <div className="mx-auto max-w-[1100px]">
         <div className="grid items-start gap-10 md:grid-cols-2 md:gap-20">
           <div>
-            <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-twiga-amber">
+            <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-twiga-red-dark">
               Get Started
             </p>
             <h2 className="font-display text-[clamp(1.8rem,3vw,2.5rem)] font-normal leading-tight text-twiga-forest">
               Join hundreds of teachers already using Twiga
             </h2>
             <p className="mt-4 max-w-md font-light leading-relaxed text-twiga-text-muted">
-              Registration takes under two minutes. Your account is activated
-              directly through WhatsApp, with no app to install.
+              There is no form to fill in. You register inside the chat itself,
+              in under two minutes, with no app to install.
             </p>
             <ol className="mt-10 flex flex-col gap-6">
               {steps.map((s) => (
@@ -184,113 +66,68 @@ export default function Registration() {
             </ol>
           </div>
 
-          <div className="rounded-2xl border border-twiga-cream-dark bg-white p-8 md:p-10">
-            <h3 className="font-display text-2xl text-twiga-forest">
-              Teacher Registration
-            </h3>
-            <p className="mt-2 text-sm font-light text-twiga-text-muted">
-              We&apos;ll send your activation link directly to WhatsApp. Free for
-              all Tanzanian teachers.
-            </p>
-
-            <Form {...form}>
-              <form
-                onSubmit={form.handleSubmit(onSubmit)}
-                className="mt-8 space-y-5"
-              >
-                <FormField
-                  control={form.control}
-                  name="fullName"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-xs font-semibold text-twiga-text">
-                        Full Name
-                      </FormLabel>
-                      <FormControl>
-                        <Input
-                          placeholder="Your full name"
-                          disabled={isPending}
-                          className={inputClassName}
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="schoolName"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-xs font-semibold text-twiga-text">
-                        School Name
-                      </FormLabel>
-                      <FormControl>
-                        <Input
-                          placeholder="School or institution name"
-                          disabled={isPending}
-                          className={inputClassName}
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="whatsappNumber"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-xs font-semibold text-twiga-text">
-                        WhatsApp Number
-                      </FormLabel>
-                      <FormControl>
-                        <Input
-                          placeholder="+255 700 000 000"
-                          disabled={isPending}
-                          className={inputClassName}
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <div className="flex gap-2 rounded-lg border border-[#f4cda0] bg-twiga-amber-pale px-3.5 py-3 text-xs leading-relaxed text-[#7a4a15]">
-                  <span className="shrink-0" aria-hidden>
-                    ⓘ
-                  </span>
-                  <span>
-                    This will be your primary number with Twiga. Only Tanzanian
-                    numbers are supported. Changing it later requires
-                    re-registration.
-                  </span>
+          <div className="overflow-hidden rounded-2xl border border-twiga-cream-dark bg-white">
+            <div className="flex items-center gap-3 bg-twiga-wa-dark px-6 py-4 md:px-8">
+              <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-twiga-wa font-display text-base font-semibold text-white">
+                T
+              </div>
+              <div>
+                <div className="text-sm font-semibold text-white">Twiga</div>
+                <div className="text-xs text-white/70">
+                  AI Teaching Assistant · Online
                 </div>
+              </div>
+            </div>
 
-                <Button
-                  type="submit"
-                  className="h-12 w-full bg-twiga-wa-dark text-base font-semibold text-white hover:bg-twiga-wa disabled:opacity-50"
-                  disabled={isPending}
-                >
-                  {isPending ? (
-                    <>
-                      <span className="mr-2 size-5 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                      Registering...
-                    </>
-                  ) : (
-                    <>💬 Join Twiga Beta</>
-                  )}
-                </Button>
+            <div className="px-6 py-8 md:px-8 md:py-10">
+              <h3 className="font-display text-2xl text-twiga-forest">
+                Start on WhatsApp
+              </h3>
+              <p className="mt-2 text-sm font-light leading-relaxed text-twiga-text-muted">
+                Tap below and we&apos;ll open WhatsApp with this message ready to
+                send. Twiga takes it from there.
+              </p>
 
-                <p className="text-center text-xs font-light leading-relaxed text-twiga-text-light">
-                  By registering, you agree to receive WhatsApp messages from
-                  Twiga. Free for all Tanzanian teachers.
+              <div className="mt-6 rounded-xl bg-[#E8F5E9] p-3.5">
+                <p className="ml-auto max-w-[92%] rounded-[10px] rounded-br-[3px] bg-twiga-wa-bubble px-3 py-2 text-[0.85rem] leading-snug text-twiga-text">
+                  {TWIGA_WHATSAPP_GREETING}
+                  <span className="mt-1 block text-right text-[0.65rem] text-[#8a8a8a]">
+                    Ready to send
+                  </span>
                 </p>
-              </form>
-            </Form>
+              </div>
+
+              <Link
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-6 flex h-12 w-full items-center justify-center gap-2.5 rounded-md bg-twiga-wa-dark text-base font-semibold text-white transition-colors hover:bg-twiga-wa"
+              >
+                <WhatsAppIcon className="size-5" />
+                Chat with Twiga on WhatsApp
+              </Link>
+
+              <p className="mt-3 text-center text-sm font-light text-twiga-text-muted">
+                or message{" "}
+                <span className="font-medium text-twiga-forest">
+                  {formatWhatsappNumber()}
+                </span>
+              </p>
+
+              <div className="mt-6 flex gap-2 rounded-lg border border-twiga-red-line bg-twiga-red-pale px-3.5 py-3 text-xs leading-relaxed text-twiga-red-dark">
+                <ShieldCheck className="mt-px size-4 shrink-0" strokeWidth={1.9} />
+                <span>
+                  Message from the number you teach with — it becomes your Twiga
+                  account. Only Tanzanian numbers are supported, and changing it
+                  later requires re-registration.
+                </span>
+              </div>
+
+              <p className="mt-5 text-center text-xs font-light leading-relaxed text-twiga-text-light">
+                Free for all Tanzanian teachers. By messaging Twiga you agree to
+                receive WhatsApp messages from us.
+              </p>
+            </div>
           </div>
         </div>
       </div>

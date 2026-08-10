@@ -1,0 +1,23 @@
+import type { Metadata } from "next";
+import type { ReactNode } from "react";
+
+import GuideHashScroll from "@/components/guide/GuideHashScroll";
+import GuideShell from "@/components/guide/GuideShell";
+
+export const metadata: Metadata = {
+  title: {
+    default: "Twiga Guide",
+    template: "%s · Twiga Guide",
+  },
+  description:
+    "Documentation for Twiga — the AI teaching companion Tanzanian educators use on WhatsApp.",
+};
+
+export default function GuideLayout({ children }: { children: ReactNode }) {
+  return (
+    <>
+      <GuideHashScroll />
+      <GuideShell>{children}</GuideShell>
+    </>
+  );
+}

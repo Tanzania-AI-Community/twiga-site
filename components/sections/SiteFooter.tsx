@@ -36,12 +36,7 @@ export default function SiteFooter() {
                 </Link>
               </li>
               <li>
-                <Link
-                  href="https://github.com/Tanzania-AI-Community/twiga#readme"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="hover:text-white transition-colors"
-                >
+                <Link href="/guide/teachers" className="hover:text-white transition-colors">
                   Documentation
                 </Link>
               </li>
