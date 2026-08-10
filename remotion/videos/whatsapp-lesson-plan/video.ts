@@ -1,35 +1,30 @@
-import type { ComponentType } from "react";
-
-import type { GuideVideo, VideoChapter } from "../../types";
-import { ChatScene } from "./ChatScene";
-import { DURATION, FPS, MESSAGES, SCHEDULE } from "./data";
-
-/**
- * One chapter per message, opening when that message starts being typed. The
- * first chapter is pulled back to frame 0 so the opening beat is covered.
- */
-const chapters: VideoChapter[] = MESSAGES.map((message, index) => ({
-  ...message.chapter,
-  from: index === 0 ? 0 : Math.round(SCHEDULE[index].typingStart * FPS),
-}));
+import type { GuideVideo } from "../../types";
+import {
+  chaptersFrom,
+  durationInFrames,
+  makeChatScene,
+  posterFrame,
+} from "../../shared";
+import { MESSAGES, SCRIPT } from "./data";
 
 export const whatsappLessonPlanVideo: GuideVideo = {
   id: "ChatDemoScene",
   title: "A lesson plan, start to finish",
-  // The whole teachers track — introduction page included.
+  // The whole teachers track — this is the fallback for any page without its
+  // own video, so it must stay LAST in the registry.
   routes: ["/guide/teachers/**"],
-  fps: FPS,
-  durationInFrames: Math.round(DURATION * FPS),
+  fps: SCRIPT.fps,
+  durationInFrames: durationInFrames(SCRIPT),
   width: 1920,
   height: 1080,
-  chapters,
+  chapters: chaptersFrom(SCRIPT),
   // A beat after the lesson-plan card lands, so the still shows the payoff.
-  posterFrame: Math.round((SCHEDULE[1].bubbleStart + 1) * FPS),
+  posterFrame: posterFrame(SCRIPT),
   whatsappCta: {
     label: "Create a lesson plan on WhatsApp",
     // The request the video opens with, so the button sends exactly what the
     // viewer just watched being asked.
-    message: MESSAGES[0].text ?? "",
+    message: MESSAGES[0].kind === "text" ? MESSAGES[0].text : "",
   },
-  component: ChatScene as ComponentType<Record<string, unknown>>,
+  component: makeChatScene(SCRIPT),
 };

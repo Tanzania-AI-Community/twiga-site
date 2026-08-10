@@ -1,37 +1,12 @@
-// Content + constants for the "Chat Demo Scene" design.
+// The conversation and its timing. This file is the single source of truth:
+// the scene animates against SCRIPT.schedule and video.ts places the
+// follow-along chapters off the same schedule, so retiming a message moves the
+// bubble and its rail entry together.
 //
-// This file is the single source of truth for the timeline: the scene reads
-// SCHEDULE to animate, and video.ts reads it to place the follow-along
-// chapters. Change a `typingDur` or `dwell` and both move together.
+// Everything else — the look, the camera, the bubble motion — comes from
+// `remotion/shared`.
 
-export const FPS = 30;
-export const DURATION = 18; // seconds
-export const INTRO = 1.2; // dead air before the first message is typed
-export const ENTER_DUR = 0.5; // bubble entrance, in seconds
-
-// WhatsApp palette: outgoing (sent) green, incoming (received) white.
-export const ACCENT = "#d9fdd3"; // outgoing bubble
-export const GRAY = "#ffffff"; // incoming bubble
-
-/** Rail copy for the beat a message opens. */
-export type MessageChapter = {
-  id: string;
-  title: string;
-  description: string;
-};
-
-export type Message = {
-  side: "left" | "right";
-  kind: "text" | "image";
-  text?: string;
-  time: string;
-  typingDur: number;
-  dwell: number;
-  fontSize?: string;
-  maxWidth?: string;
-  lineHeight?: string;
-  chapter: MessageChapter;
-};
+import { buildScript, LONG_MESSAGE, type Message } from "../../shared";
 
 const LONG = [
   "This lesson plan was built following TIE guidelines and the approach for teaching algebra to Form 1, as described in the official Mathematics textbooks.",
@@ -52,6 +27,15 @@ const LONG = [
   "Would you like a PDF version of this lesson plan? Or should I prepare one for another topic?",
 ].join("\n");
 
+/** The skeleton rows for the "ANDALIO LA SOMO" card, kept as authored. */
+const CARD_ROWS = [
+  { label: 72, lineA: 90, lineB: 62 },
+  { label: 58, lineA: 84, lineB: 70 },
+  { label: 66, lineA: 92, lineB: 54 },
+  { label: 50, lineA: 80, lineB: 66 },
+  { label: 62, lineA: 88, lineB: 48 },
+];
+
 export const MESSAGES: Message[] = [
   {
     side: "right",
@@ -64,12 +48,17 @@ export const MESSAGES: Message[] = [
       id: "ask-in-plain-language",
       title: "Ask in plain language",
       description:
-        "No commands and no special syntax — name the subject and the form level the way you would tell a colleague.",
+        "No commands and no special syntax. Name the subject and the form level the way you would tell a colleague.",
     },
   },
   {
     side: "left",
-    kind: "image",
+    kind: "card",
+    card: {
+      title: "LESSON PLAN",
+      subtitle: "Mathematics · Algebra · Form 1",
+      rows: CARD_ROWS,
+    },
     time: "12:31",
     typingDur: 1.2,
     dwell: 2.9,
@@ -91,47 +80,24 @@ export const MESSAGES: Message[] = [
       id: "ask-a-follow-up",
       title: "Ask a follow-up",
       description:
-        "The thread keeps its context, so you can question an answer instead of starting the request over.",
+        "The thread remembers what you asked, so you can question an answer instead of starting over.",
     },
   },
   {
     side: "left",
     kind: "text",
     text: LONG,
+    ...LONG_MESSAGE,
     time: "13:18",
     typingDur: 1.4,
     dwell: 5.6,
-    fontSize: "21px",
-    maxWidth: "780px",
-    lineHeight: "1.4",
     chapter: {
       id: "grounded-in-the-syllabus",
       title: "Grounded in the syllabus",
       description:
-        "Twiga shows its work: the TIE guidance, the textbook topic and the teaching approach behind the plan.",
+        "Twiga shows its work. It names the TIE guidance, the textbook topic and the teaching approach behind the plan.",
     },
   },
 ];
 
-/**
- * When each message starts typing and when its bubble lands, in seconds.
- * Derived from the list above so the scene and the chapters never drift.
- */
-export const SCHEDULE: { typingStart: number; bubbleStart: number }[] = (() => {
-  let cursor = INTRO;
-  return MESSAGES.map((message) => {
-    const typingStart = cursor;
-    const bubbleStart = typingStart + message.typingDur;
-    cursor = bubbleStart + message.dwell;
-    return { typingStart, bubbleStart };
-  });
-})();
-
-// The skeleton rows for the "ANDALIO LA SOMO" lesson-plan card image.
-export const CARD_ROWS = [
-  { label: 72, lineA: 90, lineB: 62 },
-  { label: 58, lineA: 84, lineB: 70 },
-  { label: 66, lineA: 92, lineB: 54 },
-  { label: 50, lineA: 80, lineB: 66 },
-  { label: 62, lineA: 88, lineB: 48 },
-];
+export const SCRIPT = buildScript(MESSAGES);

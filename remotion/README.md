@@ -12,23 +12,36 @@ remotion/
   Root.tsx        Registers every video in the registry as a <Composition>
   registry.ts     The list of videos + route lookup used by the site
   types.ts        GuideVideo / VideoChapter and the helpers around them
+  shared/         The engine. Every video is this, with different content.
+    ChatScene.tsx   The composition: stage, camera, bubbles, measuring layer
+    schedule.ts     Message types + the timeline model (buildScript)
+    DocCard.tsx     Document/attachment bubbles
+    motion.ts       Curves and the entrance/exit track
+    tokens.ts       Palette, geometry, typography
+    visuals.ts      Inline style factories + easings
   videos/
     whatsapp-lesson-plan/
-      video.ts        The manifest: routes, chapters, dimensions, component
-      ChatScene.tsx   The composition
-      data.ts         Copy + timeline (the single source of truth for timings)
-      visuals.ts      Shared inline styles
-      LessonCard.tsx  A prop used by the scene
+      data.ts         The conversation, its timing and its chapter copy
+      video.ts        The manifest: routes, chapters, dimensions, CTA
 ```
 
-Everything a video owns lives in its own folder under `videos/`. The site never
+A video is **two files**: what is said, and where it plays. The look, the
+camera, the bubble motion and the timing model are shared, because there are
+26 of these across the guide and they have to read as one set. The site never
 imports a scene directly — it goes through `registry.ts`, so a video can be
 rewritten, retimed or renamed without touching `app/` or `components/`.
 
+If a video needs something the shared system cannot express, add it to
+`shared/` so every video can have it. Do not fork the scene into a video folder.
+
+For the full spec — the timeline model, how to derive timings, the invariants
+that types do not enforce — see [REPLICA_BRIEF.md](./REPLICA_BRIEF.md). Hand
+that file to whoever is building the next video.
+
 ## Adding a video
 
-1. Create `videos/<your-video>/` and write the composition. Keep styles inline:
-   the site's Tailwind stylesheet is not loaded when Remotion renders headlessly.
+1. Create `videos/<your-video>/data.ts` — the messages, their `typingDur`/`dwell`
+   and their chapter copy — and end it with `export const SCRIPT = buildScript(MESSAGES)`.
 2. Export a `GuideVideo` from `videos/<your-video>/video.ts` — the manifest tells
    the site where the video plays (`routes`) and how to label its segments
    (`chapters`). A route ending in `/**` covers a whole subtree, so
