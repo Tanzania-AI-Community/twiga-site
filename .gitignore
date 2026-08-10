@@ -31,3 +31,15 @@ next-env.d.ts
 .idea
 *.iml
 .scratch/
+
+# Design, planning and authoring material. Kept local so the remote stays
+# application code only. Shared with collaborators out of band, not by pushing.
+#
+# WhatsApp chat exports and audit notes
+/research/
+# Per-page conversation scripts for the guide videos
+/content/video-scripts/
+# Planning docs, briefs, working notes
+/docs/
+# Video build brief
+remotion/REPLICA_BRIEF.md
