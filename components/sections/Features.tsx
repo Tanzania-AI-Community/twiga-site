@@ -29,7 +29,7 @@ export default function Features() {
     >
       <div className="mx-auto max-w-[1100px]">
         <header className="mb-14 max-w-2xl md:mb-16">
-          <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-twiga-amber">
+          <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-twiga-red-dark">
             What Twiga Does
           </p>
           <h2 className="font-display text-[clamp(1.8rem,3vw,2.5rem)] font-normal leading-tight text-twiga-forest">

@@ -12,9 +12,15 @@
   --color-twiga-forest-mid: #2d6a4f;
   --color-twiga-forest-light: #4a9b72;
   --color-twiga-forest-pale: #eaf4ee;
-  --color-twiga-amber: #c96b1a;
-  --color-twiga-amber-light: #f4a261;
-  --color-twiga-amber-pale: #fdf1e6;
+  --color-twiga-forest-line: #bfe3cd;
+  /* The accent is the red from the Twiga logo mark. `red` is the mark itself,
+     used for solid shapes; `red-dark` is the text tone, since the mark only
+     reaches 4.2:1 on cream and small text needs 4.5:1. */
+  --color-twiga-red: #d6431e;
+  --color-twiga-red-dark: #b3371a;
+  --color-twiga-red-light: #ef7f5c;
+  --color-twiga-red-pale: #fdefea;
+  --color-twiga-red-line: #f3c9bb;
   --color-twiga-text: #1c1a17;
   --color-twiga-text-muted: #7a7568;
   --color-twiga-text-light: #a8a296;
@@ -215,4 +221,166 @@
 
 .twiga-sponsor-card-enter {
   animation: twiga-sponsor-card-enter 0.65s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* ---------------------------------------------------------------------------
+   Guide (/guide) — documentation typography.
+   Scoped with :where() so specificity stays at 0 and anything inside a
+   .not-prose wrapper (callouts, cards, chat samples) keeps its own styles.
+--------------------------------------------------------------------------- */
+
+.guide-prose {
+  @apply text-[0.975rem] font-normal leading-[1.75] text-twiga-text;
+}
+
+.guide-prose :where(h2):not(:where(.not-prose *)) {
+  @apply mb-3.5 mt-12 scroll-mt-24 border-b border-twiga-cream-dark pb-2.5 font-sans text-[1.4rem] font-semibold leading-snug tracking-tight text-twiga-forest;
+}
+
+.guide-prose :where(h3):not(:where(.not-prose *)) {
+  @apply mb-2.5 mt-8 scroll-mt-24 font-sans text-[1.125rem] font-semibold leading-snug tracking-tight text-twiga-forest;
+}
+
+.guide-prose :where(h4):not(:where(.not-prose *)) {
+  @apply mb-2 mt-6 scroll-mt-24 font-sans text-[0.95rem] font-semibold text-twiga-forest;
+}
+
+.guide-prose :where(p):not(:where(.not-prose *)) {
+  @apply my-[1.15rem];
+}
+
+.guide-prose :where(a):not(:where(.not-prose *)) {
+  @apply font-normal text-twiga-forest-mid underline decoration-twiga-forest-light/40 underline-offset-[3px] transition-colors hover:decoration-twiga-forest-mid;
+}
+
+.guide-prose :where(strong):not(:where(.not-prose *)) {
+  @apply font-semibold text-twiga-text;
+}
+
+.guide-prose :where(ul, ol):not(:where(.not-prose *)) {
+  @apply my-[1.15rem] space-y-2 pl-5;
+}
+
+.guide-prose :where(ul):not(:where(.not-prose *)) {
+  @apply list-disc marker:text-twiga-forest-light;
+}
+
+.guide-prose :where(ol):not(:where(.not-prose *)) {
+  @apply list-decimal marker:font-normal marker:text-twiga-text-light;
+}
+
+.guide-prose :where(li > ul, li > ol):not(:where(.not-prose *)) {
+  @apply my-2;
+}
+
+.guide-prose :where(code):not(:where(.not-prose *, pre *)) {
+  @apply rounded-[3px] border border-twiga-cream-dark bg-twiga-cream-mid px-1.5 py-0.5 text-[0.85em] font-normal text-twiga-forest;
+}
+
+.guide-prose :where(pre):not(:where(.not-prose *)) {
+  @apply my-6 overflow-x-auto rounded-md bg-twiga-forest px-4 py-3.5 text-[0.8125rem] leading-relaxed text-twiga-cream;
+}
+
+.guide-prose :where(pre code):not(:where(.not-prose *)) {
+  @apply bg-transparent p-0 font-mono text-inherit;
+}
+
+.guide-prose :where(blockquote):not(:where(.not-prose *)) {
+  @apply my-6 border-l-2 border-twiga-red pl-4 italic text-twiga-text-muted;
+}
+
+/* Steps and callouts are .not-prose, so the rules above skip them. Code inside
+   them still needs to look like code. The inline chip is white rather than
+   cream here, so it sits on any of the three callout tints. */
+.guide-steps :where(code):not(:where(pre *)),
+.guide-callout :where(code):not(:where(pre *)) {
+  @apply rounded-[3px] border border-twiga-cream-dark/70 bg-white/70 px-1.5 py-0.5 text-[0.85em] font-normal text-twiga-forest;
+}
+
+.guide-steps :where(pre),
+.guide-callout :where(pre) {
+  @apply my-3 overflow-x-auto rounded-md bg-twiga-forest px-3.5 py-3 text-[0.8125rem] leading-relaxed text-twiga-cream;
+}
+
+.guide-steps :where(pre code),
+.guide-callout :where(pre code) {
+  @apply border-0 bg-transparent p-0 font-mono text-inherit;
+}
+
+.guide-prose :where(hr):not(:where(.not-prose *)) {
+  @apply my-10 border-twiga-cream-dark;
+}
+
+.guide-prose :where(img):not(:where(.not-prose *)) {
+  @apply my-6 h-auto max-w-full rounded-md border border-twiga-cream-dark;
+}
+
+/* display:block lets wide tables scroll on their own instead of the page */
+.guide-prose :where(table):not(:where(.not-prose *)) {
+  @apply my-6 block w-full overflow-x-auto border-collapse text-sm;
+}
+
+.guide-prose :where(th):not(:where(.not-prose *)) {
+  @apply border-b border-twiga-cream-dark bg-twiga-cream-mid px-3 py-2.5 text-left font-semibold text-twiga-forest;
+}
+
+.guide-prose :where(td):not(:where(.not-prose *)) {
+  @apply border-b border-twiga-cream-dark px-3 py-2.5 align-top text-twiga-text-muted;
+}
+
+/* Numbered steps used by <Steps> / <Step> */
+.guide-steps {
+  counter-reset: guide-step;
+}
+
+.guide-steps > li {
+  counter-increment: guide-step;
+}
+
+.guide-steps > li::before {
+  content: counter(guide-step);
+  @apply absolute left-0 top-0 flex size-7 items-center justify-center rounded-full bg-twiga-forest-pale font-sans text-[0.8125rem] font-semibold text-twiga-forest-mid;
+}
+
+.guide-steps > li:not(:last-child)::after {
+  content: "";
+  @apply absolute bottom-[-1.25rem] left-[0.84rem] top-8 w-px bg-twiga-cream-dark;
+}
+
+/* How far the sticky guide header currently intrudes on the viewport. The
+   sidebar and TOC rails derive their `top` and `height` from it, so they give
+   back the header's space as it slides away. Registering it as a <length>
+   makes it animatable, which is the point: one transition on the shell drives
+   the header's own transform *and* both rails, so they cannot drift apart the
+   way three independent transitions can. The initial value has to be
+   computationally independent, hence px rather than rem. */
+@property --guide-header-h {
+  syntax: "<length>";
+  inherits: true;
+  initial-value: 64px;
+}
+
+.guide-shell {
+  transition: --guide-header-h 300ms ease-out;
+}
+
+/* Put the header back in place with no slide. Used where an animation would
+   read as a glitch rather than as motion: arriving at the top of the page,
+   where the header's own band is on screen and would otherwise sit empty for
+   the length of the slide, and opening the mobile drawer. */
+.guide-shell--snap,
+.guide-shell--snap > header {
+  transition-duration: 0s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .guide-shell,
+  .guide-shell *,
+  .guide-shell *::before,
+  .guide-shell *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
