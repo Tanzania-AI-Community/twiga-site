@@ -7,6 +7,8 @@ import { UsersSection } from "@/components/admin/UsersSection";
 import { AgeCard } from "@/components/admin/metrics/AgeCard";
 import { ClassesCard } from "@/components/admin/metrics/ClassesCard";
 import { GrowthKpis } from "@/components/admin/metrics/GrowthKpis";
+import { MessagesChart } from "@/components/admin/metrics/MessagesChart";
+import { MessagesKpis } from "@/components/admin/metrics/MessagesKpis";
 import { RegistrationsChart } from "@/components/admin/metrics/RegistrationsChart";
 import { StatStrip } from "@/components/admin/metrics/StatStrip";
 import { SubjectsCard } from "@/components/admin/metrics/SubjectsCard";
@@ -55,6 +57,16 @@ export default async function AdminDashboard({
           </Suspense>
           <Suspense fallback={<GrowthKpisSkeleton />}>
             <GrowthKpis />
+          </Suspense>
+        </div>
+
+        {/* Teacher messages: same chart and comparison cards, own query */}
+        <div className="grid gap-4 lg:grid-cols-[2.4fr_1fr]">
+          <Suspense fallback={<ChartSkeleton />}>
+            <MessagesChart />
+          </Suspense>
+          <Suspense fallback={<GrowthKpisSkeleton />}>
+            <MessagesKpis />
           </Suspense>
         </div>
 

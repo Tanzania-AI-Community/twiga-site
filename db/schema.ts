@@ -1,5 +1,6 @@
 import {
   pgTable,
+  pgEnum,
   text,
   timestamp,
   serial,
@@ -7,6 +8,7 @@ import {
   json,
   date,
   integer,
+  boolean,
 } from "drizzle-orm/pg-core";
 
 // User states enum values
@@ -48,3 +50,19 @@ export const users = pgTable("users", {
 
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
+
+// Teacher chat turns. Content, tool calls and cron fields are omitted on
+// purpose: the dashboard only counts messages, it never reads what was said.
+export const messageRole = pgEnum("messagerole", [
+  "user",
+  "assistant",
+  "tool",
+  "system",
+]);
+
+export const messages = pgTable("messages", {
+  id: integer("id").primaryKey(),
+  role: messageRole("role").notNull(),
+  is_present_in_conversation: boolean("is_present_in_conversation").notNull(),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull(),
+});
