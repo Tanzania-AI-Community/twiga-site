@@ -84,12 +84,17 @@ const GRANULARITY_WINDOW: Record<Granularity, (now: Date) => Date> = {
   month: (now) => subMonths(startOfMonth(now), 11), // last 12 months
 };
 
+/** Start of the longest chart window (12 months). Shorter views sit inside it. */
+export function chartHistoryStart(now: Date = new Date()): Date {
+  return GRANULARITY_WINDOW.month(now);
+}
+
 /**
  * Buckets registration timestamps by day, week, or month with zero-filled
  * gaps so quiet periods still show on the chart.
  */
 export function bucketRegistrations(
-  createdAt: (Date | number)[],
+  createdAt: (Date | number | { at: Date | number; count: number })[],
   granularity: Granularity,
   now: Date = new Date()
 ): RegistrationBucket[] {
@@ -115,10 +120,11 @@ export function bucketRegistrations(
 
   const counts = new Map<string, number>(periods.map((p) => [keyOf(p), 0]));
   for (const raw of createdAt) {
-    const date = new Date(raw);
+    const weighted = typeof raw === "object" && "count" in raw;
+    const date = new Date(weighted ? raw.at : raw);
     const key = keyOf(date);
-    // Registrations older than the window are ignored on purpose.
-    if (counts.has(key)) counts.set(key, (counts.get(key) ?? 0) + 1);
+    // Points older than the window are ignored on purpose.
+    if (counts.has(key)) counts.set(key, (counts.get(key) ?? 0) + (weighted ? raw.count : 1));
   }
 
   let running = 0;

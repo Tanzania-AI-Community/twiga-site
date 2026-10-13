@@ -66,6 +66,26 @@ export const metricInfo = {
     what: "How many teachers registered in the past month, and whether that is more or less than the month before.",
     how: "We count accounts created in the last 30 days and compare with the 30 days before that. This number ignores your filters.",
   },
+  kpi_messages_today: {
+    title: "Messages today",
+    what: "How many messages teachers sent today, and how that compares with yesterday.",
+    how: "We count messages teachers sent since midnight, then compare with yesterday. Twiga's own replies and the steps it takes internally are not included. This number ignores your filters.",
+  },
+  kpi_messages_week: {
+    title: "Messages, last 7 days",
+    what: "How many messages teachers sent in the past week, and whether that is more or less than the week before.",
+    how: "We count messages teachers sent in the last 7 days and compare with the 7 days before that. This number ignores your filters.",
+  },
+  kpi_messages_month: {
+    title: "Messages, last 30 days",
+    what: "How many messages teachers sent in the past month, and whether that is more or less than the month before.",
+    how: "We count messages teachers sent in the last 30 days and compare with the 30 days before that. This number ignores your filters.",
+  },
+  messages_chart: {
+    title: "Messages over time",
+    what: "How many messages teachers sent in each day, week or month, so you can see if usage is going up or down. Bars show each period on its own, Line shows the same numbers as a trend, and Cumulative shows the running total.",
+    how: "Each message a teacher sends is stored with the time it arrived. We group those times. Twiga's replies and internal steps are left out. This chart ignores your filters.",
+  },
   registrations_chart: {
     title: "Registrations over time",
     what: "How many teachers signed up in each day, week or month, so you can see if growth is going up or down. Bars show each period on its own, Line shows the same numbers as a trend, and Cumulative shows the running total.",

@@ -34,41 +34,25 @@ function Trend({ window }: { window: WindowComparison }) {
   );
 }
 
+export interface WindowSegment {
+  label: string;
+  data: WindowComparison;
+  sub: string;
+  infoKey: MetricInfoKey;
+}
+
 /**
- * Global growth KPIs: new sign-ups today / last 7 days / last 30 days, each
- * compared with the window right before it. One segmented card: a column
- * beside the chart on large screens, a row when the layout stacks.
- * Always unfiltered, hence the Global pill on each segment.
+ * Today / 7-day / 30-day comparison column shared by sign-ups and messages.
+ * One segmented card: a column beside the chart on large screens, a row when
+ * the layout stacks. The Global pill marks figures that ignore filters.
  */
-export async function GrowthKpis() {
-  const stats = await getRegistrationStats();
-
-  const segments: {
-    label: string;
-    data: WindowComparison;
-    sub: string;
-    infoKey: MetricInfoKey;
-  }[] = [
-    {
-      label: "Today",
-      data: stats.today,
-      sub: `today vs yesterday (${stats.today.previous})`,
-      infoKey: "kpi_today",
-    },
-    {
-      label: "Last 7 days",
-      data: stats.week,
-      sub: `this week vs prior 7d (${stats.week.previous})`,
-      infoKey: "kpi_week",
-    },
-    {
-      label: "Last 30 days",
-      data: stats.month,
-      sub: `this month vs prior 30d (${stats.month.previous})`,
-      infoKey: "kpi_month",
-    },
-  ];
-
+export function WindowKpiColumn({
+  segments,
+  emptyLabel,
+}: {
+  segments: WindowSegment[];
+  emptyLabel: string | null;
+}) {
   return (
     <div className="grid h-full gap-px overflow-hidden rounded-md border bg-border shadow-xs lg:grid-rows-3 max-lg:grid-cols-3 max-sm:grid-cols-1">
       {segments.map((segment) => (
@@ -91,11 +75,45 @@ export async function GrowthKpis() {
             <Trend window={segment.data} />
           </div>
           <div className="mt-1 text-[11.5px] text-muted-foreground">
-            {stats.total === 0 ? "No sign-ups yet" : segment.sub}
+            {emptyLabel ?? segment.sub}
           </div>
           <MetricInfo infoKey={segment.infoKey} className="right-16" />
         </div>
       ))}
     </div>
+  );
+}
+
+/**
+ * Global growth KPIs: new sign-ups today / last 7 days / last 30 days, each
+ * compared with the window right before it.
+ */
+export async function GrowthKpis() {
+  const stats = await getRegistrationStats();
+
+  return (
+    <WindowKpiColumn
+      emptyLabel={stats.total === 0 ? "No sign-ups yet" : null}
+      segments={[
+        {
+          label: "Today",
+          data: stats.today,
+          sub: `today vs yesterday (${stats.today.previous})`,
+          infoKey: "kpi_today",
+        },
+        {
+          label: "Last 7 days",
+          data: stats.week,
+          sub: `this week vs prior 7d (${stats.week.previous})`,
+          infoKey: "kpi_week",
+        },
+        {
+          label: "Last 30 days",
+          data: stats.month,
+          sub: `this month vs prior 30d (${stats.month.previous})`,
+          infoKey: "kpi_month",
+        },
+      ]}
+    />
   );
 }

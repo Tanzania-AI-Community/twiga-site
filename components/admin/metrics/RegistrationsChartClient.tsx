@@ -23,8 +23,13 @@ import {
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { bucketRegistrations, type Granularity } from "@/lib/metrics";
+import {
+  bucketRegistrations,
+  type Granularity,
+  type RegistrationBucket,
+} from "@/lib/metrics";
 import { MetricInfo } from "@/components/admin/MetricInfo";
+import type { MetricInfoKey } from "@/lib/metric-info";
 
 type Mode = "bars" | "line" | "cumulative";
 
@@ -72,18 +77,37 @@ const axisTick = { fontSize: 11, fill: "#8a988e" } as const;
  * Bars/Line/Cumulative modes, all local state so switching never refetches.
  */
 export function RegistrationsChartClient({
-  timestamps,
+  timestamps = [],
+  buckets,
+  title = "Registrations over time",
+  description = "Sign-ups per period. Follows the dashboard filters.",
+  seriesName = "Sign-ups",
+  emptyTitle = "No sign-ups in this period",
+  emptyHint = "Try clearing your filters to see all registrations.",
+  infoKey = "registrations_chart",
 }: {
-  timestamps: number[];
+  timestamps?: number[];
+  /** Pre-bucketed series. Day/week/month switches stay local either way. */
+  buckets?: Record<Granularity, RegistrationBucket[]>;
+  title?: string;
+  description?: string;
+  seriesName?: string;
+  emptyTitle?: string;
+  emptyHint?: string;
+  infoKey?: MetricInfoKey;
 }) {
   const [granularity, setGranularity] = React.useState<Granularity>("week");
   const [mode, setMode] = React.useState<Mode>("bars");
 
   const data = React.useMemo(
-    () => bucketRegistrations(timestamps, granularity),
-    [timestamps, granularity]
+    () => buckets?.[granularity] ?? bucketRegistrations(timestamps, granularity),
+    [buckets, timestamps, granularity]
   );
-  const hasData = timestamps.length > 0;
+  const hasData = buckets
+    ? (["day", "week", "month"] as const).some((g) =>
+        buckets[g].some((bucket) => bucket.count > 0)
+      )
+    : timestamps.length > 0;
 
   return (
     <div className="group relative flex flex-col rounded-md border bg-card p-4 shadow-xs">
@@ -91,11 +115,9 @@ export function RegistrationsChartClient({
         <div>
           <h2 className="flex items-center gap-2 text-[15px] font-semibold text-slate-900">
             <BarChart3 className="h-4 w-4" />
-            Registrations over time
+            {title}
           </h2>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            Sign-ups per period. Follows the dashboard filters.
-          </p>
+          <p className="mt-0.5 text-xs text-muted-foreground">{description}</p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex gap-1" role="group" aria-label="Granularity">
@@ -134,11 +156,9 @@ export function RegistrationsChartClient({
           <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
             <CalendarX2 className="h-8 w-8 text-slate-300" />
             <p className="text-sm font-medium text-slate-600">
-              No sign-ups in this period
+              {emptyTitle}
             </p>
-            <p className="text-xs text-muted-foreground">
-              Try clearing your filters to see all registrations.
-            </p>
+            <p className="text-xs text-muted-foreground">{emptyHint}</p>
           </div>
         ) : (
           <ResponsiveContainer width="100%" height="100%">
@@ -155,7 +175,7 @@ export function RegistrationsChartClient({
                 />
                 <YAxis tickLine={false} axisLine={false} tick={axisTick} allowDecimals={false} />
                 <Tooltip cursor={{ fill: "rgba(22,163,74,0.06)" }} contentStyle={tooltipStyle} />
-                <Bar dataKey="count" name="Sign-ups" fill={GREEN} radius={[3, 3, 0, 0]} maxBarSize={36} />
+                <Bar dataKey="count" name={seriesName} fill={GREEN} radius={[3, 3, 0, 0]} maxBarSize={36} />
               </BarChart>
             ) : mode === "line" ? (
               <LineChart data={data} margin={{ top: 4, right: 4, left: -18, bottom: 0 }}>
@@ -173,7 +193,7 @@ export function RegistrationsChartClient({
                 <Line
                   type="monotone"
                   dataKey="count"
-                  name="Sign-ups"
+                  name={seriesName}
                   stroke={GREEN}
                   strokeWidth={2.5}
                   dot={{ r: 2.5, fill: GREEN_DARK, strokeWidth: 0 }}
@@ -208,7 +228,7 @@ export function RegistrationsChartClient({
         )}
       </div>
 
-      <MetricInfo infoKey="registrations_chart" />
+      <MetricInfo infoKey={infoKey} />
     </div>
   );
 }

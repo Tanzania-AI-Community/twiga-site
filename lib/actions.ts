@@ -5,6 +5,7 @@ import { users } from "@/db/schema";
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { eq } from "drizzle-orm";
+import { databaseReady } from "@/lib/auth";
 import { env } from "@/env.mjs";
 import { revalidatePath } from "next/cache";
 
@@ -60,6 +61,10 @@ export async function adminLogin(formData: FormData) {
   const { ADMIN_USERNAME, ADMIN_PASSWORD } = env;
 
   if (username === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
+    if (!(await databaseReady())) {
+      return { error: "Login failed" };
+    }
+
     // Set authentication cookie
     const cookieStore = await cookies();
     cookieStore.set("admin_authenticated", "true", {
