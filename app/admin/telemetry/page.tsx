@@ -1,8 +1,18 @@
 import { Suspense } from "react";
 
 import { checkAdminAuth } from "@/lib/auth";
-import { capitalize, chartRangeLabel, parseAsOf, rangeLabel } from "@/lib/telemetry";
+import { capitalize, chartRangeLabel, parseAsOf, rangeLabel, TIME_ZONE, TIME_ZONE_OFFSET } from "@/lib/telemetry";
 import { DateRangeFilter } from "@/components/admin/telemetry/DateRangeFilter";
+import {
+  ChurnCard,
+  ErrorsCard,
+  RegionsCard,
+  RegWeekdayCard,
+  ReplySpeedCard,
+  ScienceDemandCard,
+  StuckCard,
+  UsageTimingCard,
+} from "@/components/admin/telemetry/CompletenessCards";
 import { AdminNav } from "@/components/admin/AdminNav";
 import { OverviewStrip } from "@/components/admin/telemetry/OverviewStrip";
 import { FunnelCard } from "@/components/admin/telemetry/FunnelCard";
@@ -28,7 +38,7 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 const eat = new Intl.DateTimeFormat("en-GB", {
-  timeZone: "Africa/Dar_es_Salaam",
+  timeZone: TIME_ZONE,
   day: "numeric",
   month: "short",
   year: "numeric",
@@ -75,15 +85,15 @@ export default async function TelemetryPage({
 }) {
   await checkAdminAuth();
   const params = await searchParams;
-  // Range: ?from=YYYY-MM-DD&to=YYYY-MM-DD, whole days in Tanzania time (UTC+3).
+  // Range: ?from=YYYY-MM-DD&to=YYYY-MM-DD, whole days in Tanzania time.
   // An empty or future "to" means now. ?asOf= (exact time) overrides the end.
   const fromDay = one(params.from);
   const toDay = one(params.to);
   const pinned = parseAsOf(params.asOf);
   const now = new Date();
-  const toEnd = toDay ? new Date(`${toDay}T23:59:59.999+03:00`) : null;
+  const toEnd = toDay ? new Date(`${toDay}T23:59:59.999${TIME_ZONE_OFFSET}`) : null;
   const asOf = (pinned ?? (toEnd && toEnd < now ? toEnd : now)).toISOString();
-  const from = fromDay ? new Date(`${fromDay}T00:00:00+03:00`).toISOString() : "";
+  const from = fromDay ? new Date(`${fromDay}T00:00:00${TIME_ZONE_OFFSET}`).toISOString() : "";
   const range = rangeLabel(from, asOf);
 
   return (
@@ -124,9 +134,17 @@ export default async function TelemetryPage({
             <RetentionCard asOf={asOf} from={from} />
           </Suspense>
         </div>
+        <div className="grid gap-4 lg:grid-cols-2">
+          <Suspense fallback={<MiniCardSkeleton />}>
+            <StuckCard asOf={asOf} from={from} />
+          </Suspense>
+          <Suspense fallback={<MiniCardSkeleton />}>
+            <ChurnCard asOf={asOf} from={from} />
+          </Suspense>
+        </div>
 
         <SectionTitle hint="New and active teachers over time" range={chartRangeLabel(from, asOf)}>Growth</SectionTitle>
-        <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-[1fr_1fr_0.8fr]">
+        <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
           <Suspense
             fallback={
               <>
@@ -137,8 +155,16 @@ export default async function TelemetryPage({
           >
             <GrowthCharts asOf={asOf} from={from} />
           </Suspense>
+          <Suspense fallback={<ChartSkeleton />}>
+            <RegWeekdayCard asOf={asOf} from={from} />
+          </Suspense>
+        </div>
+        <div className="grid gap-4 lg:grid-cols-2">
           <Suspense fallback={<MiniCardSkeleton />}>
             <PeaksCard asOf={asOf} from={from} />
+          </Suspense>
+          <Suspense fallback={<MiniCardSkeleton />}>
+            <RegionsCard asOf={asOf} from={from} />
           </Suspense>
         </div>
 
@@ -162,6 +188,9 @@ export default async function TelemetryPage({
             <SessionLogCard asOf={asOf} from={from} />
           </Suspense>
         </div>
+        <Suspense fallback={<ChartSkeleton />}>
+          <UsageTimingCard asOf={asOf} from={from} />
+        </Suspense>
 
         <SectionTitle hint="Is Twiga answering well?" range={`Tool runs and replies ${range}`}>Agent reliability</SectionTitle>
         <div className="grid gap-4 lg:grid-cols-2">
@@ -175,10 +204,21 @@ export default async function TelemetryPage({
         <Suspense fallback={<ChartSkeleton />}>
           <ToolTrendCard asOf={asOf} from={from} />
         </Suspense>
+        <div className="grid gap-4 xl:grid-cols-2">
+          <Suspense fallback={<ChartSkeleton />}>
+            <ReplySpeedCard asOf={asOf} from={from} />
+          </Suspense>
+          <Suspense fallback={<MiniCardSkeleton />}>
+            <ErrorsCard asOf={asOf} from={from} />
+          </Suspense>
+        </div>
 
         <SectionTitle hint="Where teachers are, and where they stay" range={`Teachers registered ${range}`}>Subjects</SectionTitle>
         <Suspense fallback={<TableSkeleton />}>
           <SubjectsTable asOf={asOf} from={from} />
+        </Suspense>
+        <Suspense fallback={<ChartSkeleton />}>
+          <ScienceDemandCard asOf={asOf} from={from} />
         </Suspense>
       </div>
     </div>

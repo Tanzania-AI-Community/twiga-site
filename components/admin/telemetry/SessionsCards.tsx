@@ -1,6 +1,6 @@
 import { Clock, Hourglass, ListChecks, MessagesSquare, Timer, Wrench, AlertTriangle, Users } from "lucide-react";
 
-import { capitalize, chartRangeLabel, getSessions, monthLabel, rangeLabel, TOOL_LABELS } from "@/lib/telemetry";
+import { CHART_COLORS, capitalize, formatMinutes, chartRangeLabel, getSessions, monthLabel, rangeLabel, TOOL_LABELS } from "@/lib/telemetry";
 import { MetricInfo } from "@/components/admin/MetricInfo";
 import { MonthlyBars } from "@/components/admin/telemetry/TelemetryCharts";
 import { SessionLog } from "@/components/admin/telemetry/SessionLog";
@@ -13,12 +13,7 @@ export const ACTIVITY_LABELS: Record<string, string> = {
 };
 
 /** "1.5 min", "<1 min", "1 h 54 min". */
-function duration(min: number | null): string {
-  if (min === null) return "–";
-  if (min < 1) return "<1 min";
-  if (min < 60) return `${Math.round(min * 10) / 10} min`;
-  return `${Math.floor(min / 60)} h ${Math.round(min % 60)} min`;
-}
+const duration = (min: number | null) => formatMinutes(min, true);
 
 /** Headline session figures: all time, with the last 30 days underneath. */
 export async function SessionStrip({ asOf, from = "" }: { asOf: string; from?: string }) {
@@ -190,8 +185,8 @@ export async function SessionMonthsCard({ asOf, from = "" }: { asOf: string; fro
         <MonthlyBars
           data={data}
           series={[
-            { key: "withTools", name: "Used a textbook tool", color: "#16a34a" },
-            { key: "chatOnly", name: "Chat only", color: "#bbf7d0" },
+            { key: "withTools", name: "Used a textbook tool", color: CHART_COLORS.primary },
+            { key: "chatOnly", name: "Chat only", color: CHART_COLORS.light },
           ]}
         />
       )}

@@ -1,6 +1,6 @@
 import { Activity, CalendarDays, TrendingUp } from "lucide-react";
 
-import { capitalize, chartRangeLabel, dayLabel, getGrowth, monthLabel, rangeLabel } from "@/lib/telemetry";
+import { CHART_COLORS, capitalize, chartRangeLabel, dayLabel, getGeography, getGrowth, monthLabel, rangeLabel } from "@/lib/telemetry";
 import { MonthlyBars, RegistrationsWithFollowUp } from "@/components/admin/telemetry/TelemetryCharts";
 import { EmptyState, TelemetryCard, td, th } from "@/components/admin/telemetry/shared";
 
@@ -39,7 +39,7 @@ export async function GrowthCharts({ asOf, from = "" }: { asOf: string; from?: s
         {recent.length === 0 ? (
           <EmptyState title="No activity yet" hint="Months appear once teachers use Twiga." />
         ) : (
-          <MonthlyBars data={actData} series={[{ key: "active", name: "Active teachers", color: "#16a34a" }]} />
+          <MonthlyBars data={actData} series={[{ key: "active", name: "Active teachers", color: CHART_COLORS.primary }]} />
         )}
       </TelemetryCard>
     </>
@@ -48,7 +48,13 @@ export async function GrowthCharts({ asOf, from = "" }: { asOf: string; from?: s
 
 /** The busiest registration days and how many of those teachers finished onboarding. */
 export async function PeaksCard({ asOf, from = "" }: { asOf: string; from?: string }) {
-  const { peaks } = await getGrowth(asOf, from);
+  const [{ peaks }, { peakRegions }] = await Promise.all([getGrowth(asOf, from), getGeography(asOf, from)]);
+  const regionsOf = (day: string) =>
+    peakRegions
+      .filter((r) => r.day === day)
+      .slice(0, 2)
+      .map((r) => `${r.region} ${r.teachers}`)
+      .join(", ");
 
   return (
     <TelemetryCard
@@ -65,14 +71,18 @@ export async function PeaksCard({ asOf, from = "" }: { asOf: string; from?: stri
             <tr className="border-b">
               <th className={th}>Day</th>
               <th className={`${th} text-right`}>New</th>
+              <th className={th}>Main regions</th>
               <th className={`${th} text-right`}>Finished onboarding</th>
             </tr>
           </thead>
           <tbody>
             {peaks.map((p) => (
               <tr key={p.day} className="border-b last:border-0">
-                <td className={td}>{dayLabel(p.day)}</td>
+                <td className={`${td} whitespace-nowrap`}>{dayLabel(p.day)}</td>
                 <td className={`${td} text-right font-semibold text-slate-900`}>{p.registered}</td>
+                <td className={`${td} max-w-[260px] truncate text-[11px] text-muted-foreground`} title={regionsOf(p.day)}>
+                  {regionsOf(p.day)}
+                </td>
                 <td className={`${td} text-right`}>
                   {p.finished}
                   <span className="ml-1.5 text-[11px] text-muted-foreground">

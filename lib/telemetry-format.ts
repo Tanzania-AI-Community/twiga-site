@@ -3,6 +3,33 @@
  * so client components can use them. lib/telemetry re-exports everything here.
  */
 
+/** Telemetry reports in Tanzania time (UTC+3, no daylight saving). */
+export const TIME_ZONE = "Africa/Dar_es_Salaam";
+/** ISO offset for TIME_ZONE, used to turn a Tanzania day into an instant. */
+export const TIME_ZONE_OFFSET = "+03:00";
+
+/** Chart colours, matching the dashboard's green. */
+export const CHART_COLORS = {
+  primary: "#16a34a",
+  light: "#bbf7d0",
+  failure: "#dc2626",
+  warning: "#d97706",
+  secondary: "#0ea5e9",
+} as const;
+
+/** YYYY-MM-DD of an instant, in Tanzania time. */
+export function tzDay(d: Date): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: TIME_ZONE }).format(d);
+}
+
+/** Minutes as "<1 min", "15 min" or "1 h 54 min"; `precise` keeps one decimal under an hour. */
+export function formatMinutes(min: number | null, precise = false): string {
+  if (min === null) return "–";
+  if (min < 1) return "<1 min";
+  if (min < 60) return `${precise ? Math.round(min * 10) / 10 : Math.round(min)} min`;
+  return `${Math.floor(min / 60)} h ${Math.round(min % 60)} min`;
+}
+
 export const GRADE_ORDER = ["p1", "p2", "p3", "p4", "p5", "p6", "p7", "os1", "os2", "os3", "os4", "as1", "as2"];
 
 export function sortGrades(grades: string[]): string[] {
@@ -34,16 +61,6 @@ export function gradeRange(grades: string[]): string {
 // ---------------------------------------------------------------------------
 // Formatting
 // ---------------------------------------------------------------------------
-
-/** "16 of 214 (7%)". */
-export function countOf(a: number, b: number): string {
-  if (b === 0) return `${a} of 0`;
-  return `${a} of ${b} (${Math.round((100 * a) / b)}%)`;
-}
-
-export function pct(a: number, b: number): number | null {
-  return b === 0 ? null : (100 * a) / b;
-}
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
@@ -82,9 +99,8 @@ export function subjectLabel(subject: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
-const EAT_YMD = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Dar_es_Salaam" });
 /** Same "17 Nov 2026" style as dayLabel, for a moment in time (Tanzania day). */
-const DAY_FMT = { format: (d: Date) => dayLabel(EAT_YMD.format(d)) };
+const DAY_FMT = { format: (d: Date) => dayLabel(tzDay(d)) };
 
 /** "1 Sep 2026 – 17 Nov 2026", or "any time up to 17 Nov 2026" when there is no start. Reads inside a sentence. */
 export function rangeLabel(fromIso: string, asOfIso: string): string {
