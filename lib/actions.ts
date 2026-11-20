@@ -1,18 +1,12 @@
 "use server";
 
 import { db } from "@/db";
-import { users, userStates } from "@/db/schema";
+import { users } from "@/db/schema";
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { eq } from "drizzle-orm";
-import {
-  createSessionToken,
-  credentialsMatch,
-  databaseReady,
-  isAdminAuthenticated,
-  SESSION_COOKIE,
-  SESSION_MAX_AGE_S,
-} from "@/lib/auth";
+import { databaseReady } from "@/lib/auth";
+import { env } from "@/env.mjs";
 import { revalidatePath } from "next/cache";
 
 // Create user in review status
@@ -60,54 +54,49 @@ export async function submitRegistration(formData: FormData) {
 }
 
 export async function adminLogin(formData: FormData) {
-  const username = String(formData.get("username") ?? "");
-  const password = String(formData.get("password") ?? "");
+  const username = formData.get("username") as string;
+  const password = formData.get("password") as string;
 
-  // Credentials come from ADMIN_USERNAME / ADMIN_PASSWORD; login is disabled
-  // when no password is configured.
-  if (!credentialsMatch(username, password)) {
+  // Get admin credentials from environment variables
+  const { ADMIN_USERNAME, ADMIN_PASSWORD } = env;
+
+  if (username === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
+    if (!(await databaseReady())) {
+      return { error: "Login failed" };
+    }
+
+    // Set authentication cookie
+    const cookieStore = await cookies();
+    cookieStore.set("admin_authenticated", "true", {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      maxAge: 60 * 60 * 24, // 24 hours
+    });
+    redirect("/admin/dashboard");
+  } else {
     return { error: "Invalid credentials" };
   }
-  if (!(await databaseReady())) {
-    return { error: "Login failed" };
-  }
-
-  const token = createSessionToken();
-  if (!token) return { error: "Login failed" };
-
-  // Signed, expiring session: the cookie can't be forged by setting it by hand.
-  const cookieStore = await cookies();
-  cookieStore.set(SESSION_COOKIE, token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/",
-    maxAge: SESSION_MAX_AGE_S,
-  });
-  redirect("/admin/dashboard");
 }
 
 export async function adminLogout() {
   const cookieStore = await cookies();
-  cookieStore.delete(SESSION_COOKIE);
+  cookieStore.delete("admin_authenticated");
   redirect("/admin");
-}
-
-type UserState = (typeof userStates)[number];
-
-/** Rejects callers without an admin session and malformed ids. Server actions are public endpoints. */
-async function guardUserUpdate(userId: unknown): Promise<string | null> {
-  if (!(await isAdminAuthenticated())) return "Not signed in";
-  if (!Number.isSafeInteger(userId) || (userId as number) <= 0) return "Invalid user";
-  return null;
 }
 
 // getUsers moved to lib/data.ts (React cache()-wrapped, throws on error)
 
-export async function updateUserState(userId: number, newState: UserState) {
-  const denied = await guardUserUpdate(userId);
-  if (denied) return { error: denied };
-  if (!userStates.includes(newState)) return { error: "Invalid state" };
+export async function updateUserState(
+  userId: number,
+  newState:
+    | "blocked"
+    | "rate_limited"
+    | "approved"
+    | "onboarding"
+    | "active"
+    | "inactive"
+    | "in_review"
+) {
   try {
     await db
       .update(users)
@@ -127,8 +116,6 @@ export async function updateUserState(userId: number, newState: UserState) {
 
 // Approving users in review
 export async function approveUser(userId: number) {
-  const denied = await guardUserUpdate(userId);
-  if (denied) return { error: denied };
   try {
     await db
       .update(users)
@@ -148,8 +135,6 @@ export async function approveUser(userId: number) {
 
 // Rejecting users in review
 export async function rejectUser(userId: number) {
-  const denied = await guardUserUpdate(userId);
-  if (denied) return { error: denied };
   try {
     await db
       .update(users)
