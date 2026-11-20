@@ -111,6 +111,114 @@ export const metricInfo = {
     what: "How heavy the teaching load is across the base, grouped by number of classes.",
     how: "We count the classes each teacher listed on their profile, then group teachers by that count.",
   },
+  // -------------------------------------------------------------------------
+  // Telemetry page. Same definitions as the teacher analytics report.
+  // -------------------------------------------------------------------------
+  tel_teachers: {
+    title: "Teachers",
+    what: "Everyone who has registered as a teacher on Twiga.",
+    how: "We count teacher accounts, leaving out test accounts, the Twiga team, partners and numbers from outside Tanzania.",
+  },
+  tel_onboarded: {
+    title: "Finished onboarding",
+    what: "How many teachers completed setup, including choosing their subjects and grades.",
+    how: "We count teachers whose onboarding is marked completed, out of all teachers.",
+  },
+  tel_active30: {
+    title: "Active in the last 30 days",
+    what: "Onboarded teachers who used Twiga at least once in the last 30 days.",
+    how: "We count onboarded teachers who sent Twiga a message in the last 30 days, out of all onboarded teachers.",
+  },
+  tel_active7: {
+    title: "Active in the last 7 days",
+    what: "Onboarded teachers who used Twiga at least once in the last 7 days.",
+    how: "We count onboarded teachers who sent Twiga a message in the last 7 days, out of all onboarded teachers.",
+  },
+  tel_week2: {
+    title: "Back in week 2",
+    what: "Of the teachers who started using Twiga, how many came back in their second week.",
+    how: "For each onboarded teacher we look at days 7 to 13 after their first message. Monthly groups whose second week hasn't finished yet are left out, so new teachers don't pull the number down.",
+  },
+  tel_month2: {
+    title: "Back in month 2",
+    what: "Of the teachers who started using Twiga, how many were still using it in their second month.",
+    how: "For each onboarded teacher we look at days 30 to 59 after their first message. Monthly groups whose second month hasn't finished yet are left out.",
+  },
+  tel_funnel: {
+    title: "Teacher journey",
+    what: "How far teachers get, from first contact to using Twiga regularly. Each bar is a share of everyone who contacted Twiga.",
+    how: "Gave details and finished onboarding come from each account's setup state. Textbook help means Twiga used one of its tools (search, exercises, lesson plans, exams) for them. Second day and 5+ days count the separate days on which an onboarded teacher sent a message.",
+  },
+  tel_retention: {
+    title: "Retention by start month",
+    what: "Teachers grouped by the month they first messaged Twiga, and how many of each group came back in week 2 and in month 2.",
+    how: "Week 2 is days 7 to 13 after a teacher's first message, month 2 is days 30 to 59. A group shows 'too recent' until every teacher in it has had the full window.",
+  },
+  tel_subjects: {
+    title: "Subjects",
+    what: "For each subject: the grades set up, how many onboarded teachers chose it, how many are still active, how many come back, how many got textbook help in it, and the longest working session.",
+    how: "Teachers count once per subject they chose. Textbook help and sessions are matched to a subject through the grade Twiga searched or generated content for. A session is a run of messages with no gap longer than 30 minutes.",
+  },
+  tel_registrations: {
+    title: "New teachers per month",
+    what: "How many teachers registered each month, split by whether they finished onboarding.",
+    how: "We group teacher accounts by the month they were created (Tanzania time).",
+  },
+  tel_active_monthly: {
+    title: "Active teachers per month",
+    what: "How many onboarded teachers used Twiga at least once in each month.",
+    how: "We count the onboarded teachers who sent at least one message that month. All their messages count, including ones the conversation history later hides, so this can differ slightly from the Messages chart on the dashboard.",
+  },
+  tel_peaks: {
+    title: "Registration peaks",
+    what: "The days with the most new teachers, usually training sessions or outreach drives.",
+    how: "We count teacher accounts created on each day (Tanzania time) and show the busiest days.",
+  },
+  tel_tools: {
+    title: "Agent tools",
+    what: "How often each of Twiga's tools ran in the last 30 days and how often it failed, with the last failure date.",
+    how: "Each time Twiga runs a tool it stores the result. We count a run as failed when the result is an error. All-time totals include failures that have since been fixed, so look at the last 30 days for the current state.",
+  },
+  tel_tool_trend: {
+    title: "Tool runs per month",
+    what: "Successful and failed tool runs each month, so outages and fixes stand out.",
+    how: "We group tool results by month (Tanzania time) and mark each one as succeeded or failed.",
+  },
+  tel_sessions: {
+    title: "Sessions",
+    what: "A session is one sitting: a teacher messaging Twiga until they stop for more than 30 minutes. This counts sessions, the teachers who had them, and how many messages a teacher sends in one.",
+    how: "We take every message a teacher sent and start a new session whenever there is a gap of more than 30 minutes. All teachers count here, including those who never finished onboarding.",
+  },
+  tel_session_length: {
+    title: "Session length",
+    what: "How long teachers stay in one sitting. The typical length is the middle session; long sessions shows the length that only 1 in 10 sessions go beyond.",
+    how: "Length is the time from a teacher's first to last message in a session. A session with one message has no length, so it counts as a single message.",
+  },
+  tel_session_activity: {
+    title: "What happens in a session",
+    what: "Whether Twiga used its textbook tools in a session (search, exercises, lesson plans, exams, equation solver) or the teacher only chatted.",
+    how: "We match the tools Twiga ran to the session they happened in, allowing 10 minutes after the teacher's last message for Twiga to finish. We never read what the teacher wrote.",
+  },
+  tel_session_failures: {
+    title: "Sessions that hit a failure",
+    what: "Sessions where a tool failed, or Twiga had to apologise that something went wrong or it couldn't generate what was asked.",
+    how: "A session counts when any tool result in it was an error, or Twiga sent a 'something went wrong' or 'couldn't generate' reply.",
+  },
+  tel_session_months: {
+    title: "Sessions per month",
+    what: "How many sessions teachers had each month, split by whether Twiga used a textbook tool in them.",
+    how: "Each session counts in the month it started (Tanzania time).",
+  },
+  tel_session_log: {
+    title: "Session log",
+    what: "Individual sessions: who, when, which subject and grade, which tools Twiga used, how long it lasted and whether anything failed.",
+    how: "Built from the same sessions as the cards above. Subject and grade come from the grade Twiga searched or generated content for. Message text is never shown.",
+  },
+  tel_replies: {
+    title: "Problem replies",
+    what: "Replies where Twiga apologised, refused or couldn't help, in the last 30 days.",
+    how: "We sort Twiga's replies by their standard wording, for example 'Sorry, something went wrong'. Only the counts are read; message text never leaves the database.",
+  },
 } as const satisfies Record<string, MetricInfoEntry>;
 
 export type MetricInfoKey = keyof typeof metricInfo;
