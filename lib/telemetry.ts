@@ -3,7 +3,13 @@ import { sql, type SQL } from "drizzle-orm";
 
 import { db } from "@/db";
 import { env } from "@/env.mjs";
-import { GRADE_ORDER, sortGrades, TIME_ZONE } from "@/lib/telemetry-format";
+import {
+  ACTIVE_LONG_DAYS,
+  CHART_MONTHS,
+  GRADE_ORDER,
+  sortGrades,
+  TIME_ZONE,
+} from "@/lib/telemetry-format";
 
 export * from "@/lib/telemetry-format";
 
@@ -21,7 +27,9 @@ export * from "@/lib/telemetry-format";
  * leave the database; teachers' message text never does.
  *
  * Every query takes an "as of" time. Production uses now; passing the time of
- * the last message in a snapshot reproduces the report exactly.
+ * the last message in a snapshot reproduces the report's figures. Onboarding
+ * state is the current one, so a past "as of" can't show onboarding as it was
+ * then, and the tools card's "last failure / last success" ignore the range.
  */
 
 const TZ = TIME_ZONE;
@@ -35,15 +43,13 @@ const SESSION_GAP_MIN = 30;
 /** Tool calls up to this many minutes after a session's last message still belong to it. */
 const TOOL_GRACE_MIN = 10;
 /** "Active recently" windows, counted back from the end of the range. */
-const ACTIVE_LONG_DAYS = 30;
 const ACTIVE_SHORT_DAYS = 7;
 /** Retention windows, in days after a teacher's first message: [start, end). */
 const WEEK2 = { start: 7, end: 14 };
 const MONTH2 = { start: 30, end: 60 };
 /** A teacher message counts as unanswered if Twiga hasn't replied within this window. */
 const REPLY_WINDOW_HOURS = 24;
-/** Monthly charts cover this many months when the range is all time. */
-const CHART_MONTHS = 12;
+const REPLY_WINDOW = sql.raw(`interval '${Math.trunc(REPLY_WINDOW_HOURS)} hours'`);
 /** List lengths. */
 const PEAK_DAYS = 8;
 const SESSION_LOG_ROWS = 12;
@@ -66,6 +72,11 @@ const REPLY_PATTERNS: [type: string, pattern: string][] = [
 /** Subjects teachers ask for that Twiga doesn't offer yet (English and Swahili). */
 const PHYSICS_PATTERN = String.raw`\m(physics|fizikia)\M`;
 const CHEMISTRY_PATTERN = String.raw`\m(chemistry|kemia)\M`;
+/**
+ * The class id inside a tool call's arguments, read as text so a malformed or
+ * double-encoded payload (written by the model) can never break a query.
+ */
+const CLASS_ID_PATTERN = String.raw`"class_id\\?"\s*:\s*\\?"?(\d{1,9})`;
 const ASKED_MISSING_PATTERN = String.raw`(physics|chemistry|fizikia|kemia).{0,40}(not there|haipo|not among|no option|not see|didn.t see|missing|not available|why)|(where|no|not see|didn.t see|no option for|what about).{0,25}(physics|chemistry|fizikia|kemia)|(teach|nafundisha).{0,30}(physics|chemistry)`;
 
 const replyTypeCase = sql.join(
@@ -108,6 +119,12 @@ function realTeacherFilter(): SQL {
 }
 
 /** Shared CTEs: the report's analytics views, bounded by the as-of time. */
+/** Week-2 and month-2 return flags for a teacher row aliased "f" (needs first_msg). */
+const RETURNED_FLAGS = sql`exists(select 1 from teacher_msgs m where m.user_id = f.id
+      and m.created_at >= f.first_msg + ${days(WEEK2.start)} and m.created_at < f.first_msg + ${days(WEEK2.end)}) as w2,
+    exists(select 1 from teacher_msgs m where m.user_id = f.id
+      and m.created_at >= f.first_msg + ${days(MONTH2.start)} and m.created_at < f.first_msg + ${days(MONTH2.end)}) as m2`;
+
 function base(asOf: Date, from: Date | null): SQL {
   return sql`
 p as (
@@ -115,7 +132,7 @@ p as (
     ${from ? from.toISOString() : null}::timestamptz as start_ts,
     -- Monthly charts: the range, or the last 12 months when the range is all time.
     coalesce(${from ? from.toISOString() : null}::timestamptz,
-      (date_trunc('month', ${asOf.toISOString()}::timestamptz at time zone ${TZ}) - ${sql.raw(`interval '${CHART_MONTHS - 1} months'`)}) at time zone ${TZ}
+      (date_trunc('month', ${asOf.toISOString()}::timestamptz at time zone ${TZ}) - ${sql.raw(`interval '${Math.trunc(CHART_MONTHS - 1)} months'`)}) at time zone ${TZ}
     ) as chart_from
 ),
 teachers as (
@@ -134,17 +151,17 @@ teacher_msgs as (
 ),
 tool_calls as (
   select m.user_id, m.created_at, s.name::text as subject, c.id as class_id,
-    tc->'function'->>'name' as tool_name
+    tc->'function'->>'name' as tool_name, tc->>'id' as call_id
   from messages m
   join teachers t on t.id = m.user_id
   cross join lateral json_array_elements(m.tool_calls::json) tc
-  left join classes c on c.id = nullif((tc->'function'->>'arguments')::json->>'class_id', '')::int
+  left join classes c on c.id = substring(tc->'function'->>'arguments' from ${CLASS_ID_PATTERN})::int
   left join subjects s on s.id = c.subject_id
   where m.tool_calls is not null and json_typeof(m.tool_calls::json) = 'array'
     and m.created_at <= (select as_of from p)
 ),
 tool_results as (
-  select m.user_id, m.tool_name, m.created_at, m.content,
+  select m.user_id, m.tool_name, m.tool_call_id, m.created_at, m.content,
     coalesce(m.content ~* ${TOOL_ERROR_PATTERN}, false) as is_error
   from messages m join teachers t on t.id = m.user_id
   where m.role::text = 'tool' and m.created_at <= (select as_of from p)
@@ -231,10 +248,23 @@ const n = (v: unknown) => {
 const fromDate = (fromIso: string) => (fromIso ? new Date(fromIso) : null);
 
 /** Parses a ?asOf= value (date or timestamp). Anything else means now. */
+/** Dates outside these years are treated as typos and ignored. */
+const MIN_YEAR = 2000;
+const MAX_YEAR = 2100;
+
+const yearOk = (d: Date) =>
+  !Number.isNaN(d.getTime()) && d.getUTCFullYear() >= MIN_YEAR && d.getUTCFullYear() <= MAX_YEAR;
+
+/** True for a real "YYYY-MM-DD" calendar day in a sensible year. */
+export function isValidDay(day: string): boolean {
+  const d = new Date(`${day}T00:00:00Z`);
+  return yearOk(d) && d.toISOString().slice(0, 10) === day;
+}
+
 export function parseAsOf(raw: string | string[] | undefined): Date | null {
   if (typeof raw !== "string" || !raw) return null;
   const d = new Date(raw);
-  return Number.isNaN(d.getTime()) ? null : d;
+  return yearOk(d) ? d : null;
 }
 
 // ---------------------------------------------------------------------------
@@ -313,10 +343,7 @@ export const getRetention = cache(async (asOfIso: string, fromIso: string = ""):
     sql`,
 f as (
   select f.first_msg,
-    exists(select 1 from teacher_msgs m where m.user_id = f.id
-      and m.created_at >= f.first_msg + ${days(WEEK2.start)} and m.created_at < f.first_msg + ${days(WEEK2.end)}) as w2,
-    exists(select 1 from teacher_msgs m where m.user_id = f.id
-      and m.created_at >= f.first_msg + ${days(MONTH2.start)} and m.created_at < f.first_msg + ${days(MONTH2.end)}) as m2
+    ${RETURNED_FLAGS}
   from cohort f where f.ob = 'completed' and f.first_msg is not null
 )
 select to_char(date_trunc('month', first_msg at time zone ${TZ}), 'YYYY-MM') as month,
@@ -380,10 +407,7 @@ export const getSubjects = cache(async (asOfIso: string, fromIso: string = ""): 
       sql`,
 win as (
   select f.id, f.first_msg, f.last_msg,
-    exists(select 1 from teacher_msgs m where m.user_id = f.id
-      and m.created_at >= f.first_msg + ${days(WEEK2.start)} and m.created_at < f.first_msg + ${days(WEEK2.end)}) as w2,
-    exists(select 1 from teacher_msgs m where m.user_id = f.id
-      and m.created_at >= f.first_msg + ${days(MONTH2.start)} and m.created_at < f.first_msg + ${days(MONTH2.end)}) as m2
+    ${RETURNED_FLAGS}
   from cohort f where f.ob = 'completed'
 ),
 reg as (select ts.subject, w.* from teacher_subjects ts join win w on w.id = ts.teacher_id),
@@ -470,10 +494,7 @@ export const getGradeBreakdown = cache(async (asOfIso: string, fromIso: string =
     sql`,
 win as (
   select f.id, f.first_msg, f.last_msg,
-    exists(select 1 from teacher_msgs m where m.user_id = f.id
-      and m.created_at >= f.first_msg + ${days(WEEK2.start)} and m.created_at < f.first_msg + ${days(WEEK2.end)}) as w2,
-    exists(select 1 from teacher_msgs m where m.user_id = f.id
-      and m.created_at >= f.first_msg + ${days(MONTH2.start)} and m.created_at < f.first_msg + ${days(MONTH2.end)}) as m2
+    ${RETURNED_FLAGS}
   from cohort f where f.ob = 'completed'
 ),
 reg as (select distinct tc.class_id, w.* from teachers_classes tc join win w on w.id = tc.teacher_id),
@@ -1044,9 +1065,11 @@ export interface ReplySpeed {
 }
 
 /**
- * How fast Twiga answers. A teacher message is answered by the first Twiga
- * reply after it and before the teacher's next message (or within a day).
- * Messages in range.
+ * How fast Twiga answers. Reply time runs from a teacher message to the first
+ * Twiga reply before their next message. A message is unanswered only if no
+ * reply came within the reply window at all, so a quick burst of messages
+ * answered by one reply counts as answered. Messages younger than the window
+ * are still waiting and left out of the unanswered count. Messages in range.
  */
 export const getReplySpeed = cache(async (asOfIso: string, fromIso: string = ""): Promise<ReplySpeed> => {
   const asOf = new Date(asOfIso);
@@ -1060,8 +1083,15 @@ r as (
   select tm.*, (
     select min(a.created_at) from messages a
     where a.user_id = tm.user_id and a.role::text = 'assistant' and a.created_at > tm.created_at
-      and a.created_at < coalesce(tm.next_user, tm.created_at + ${sql.raw(`interval '${REPLY_WINDOW_HOURS} hours'`)})
-  ) as reply_at
+      and a.created_at < coalesce(tm.next_user, tm.created_at + ${REPLY_WINDOW})
+      and a.created_at <= (select as_of from p)
+  ) as reply_at,
+  exists (
+    select 1 from messages a
+    where a.user_id = tm.user_id and a.role::text = 'assistant' and a.created_at > tm.created_at
+      and a.created_at < tm.created_at + ${REPLY_WINDOW} and a.created_at <= (select as_of from p)
+  ) as answered,
+  tm.created_at > (select as_of from p) - ${REPLY_WINDOW} as waiting
   from tm where tm.created_at >= least(coalesce((select start_ts from p), '-infinity'), (select chart_from from p))
 ),
 x as (
@@ -1070,15 +1100,15 @@ x as (
   from r
 )
 select 'all' as month, count(*) filter (where in_range) as messages,
-  count(*) filter (where in_range and reply_at is null) as no_reply,
-  count(*) filter (where in_range and reply_at is null and next_user is null) as no_reply_last,
+  count(*) filter (where in_range and not answered and not waiting) as no_reply,
+  count(*) filter (where in_range and not answered and not waiting and next_user is null) as no_reply_last,
   percentile_cont(0.5) within group (order by secs) filter (where in_range and reply_at is not null) as median_s,
   percentile_cont(0.9) within group (order by secs) filter (where in_range and reply_at is not null) as p90_s,
   count(*) filter (where in_range and secs > 60) as over_60
 from x
 union all
 select to_char(date_trunc('month', created_at at time zone ${TZ}), 'YYYY-MM'), count(*),
-  count(*) filter (where reply_at is null), null,
+  count(*) filter (where not answered and not waiting), null,
   percentile_cont(0.5) within group (order by secs) filter (where reply_at is not null),
   percentile_cont(0.9) within group (order by secs) filter (where reply_at is not null), null
 from x where created_at >= (select chart_from from p)
@@ -1140,7 +1170,7 @@ export interface ClassExtras {
 
 /**
  * Per grade: textbooks linked, exams generated, and tool runs with how many
- * failed (each call matched to the next tool result). Exams and runs in range.
+ * failed (each call matched to its own result by tool call id). Exams and runs in range.
  */
 export const getClassExtras = cache(async (asOfIso: string, fromIso: string = ""): Promise<ClassExtras[]> => {
   const rows = await query<Record<string, unknown>>(new Date(asOfIso), fromDate(fromIso), sql`,
@@ -1154,10 +1184,7 @@ exams as (
 runs as (
   select c.class_id, count(*) as calls, count(*) filter (where r.is_error) as failed
   from tool_calls_r c
-  left join lateral (
-    select is_error from tool_results r where r.user_id = c.user_id and r.created_at >= c.created_at
-    order by r.created_at limit 1
-  ) r on true
+  left join tool_results r on r.user_id = c.user_id and r.tool_call_id = c.call_id
   where c.class_id is not null group by 1
 )
 select s.name::text as subject, c.grade_level::text as grade,

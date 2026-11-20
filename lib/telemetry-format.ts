@@ -109,14 +109,21 @@ export function rangeLabel(fromIso: string, asOfIso: string): string {
   return `${DAY_FMT.format(new Date(fromIso))} – ${end}`;
 }
 
-/** Window used by the monthly charts: the range, or the last 12 months. */
+/** Monthly charts cover this many months when the range is all time. */
+export const CHART_MONTHS = 12;
+/** The longer "active recently" window, in days back from the end of the range. */
+export const ACTIVE_LONG_DAYS = 30;
+
+/** Window used by the monthly charts: the range, or the last CHART_MONTHS months. */
 export function chartRangeLabel(fromIso: string, asOfIso: string): string {
-  return fromIso ? rangeLabel(fromIso, asOfIso) : `Last 12 months, up to ${DAY_FMT.format(new Date(asOfIso))}`;
+  return fromIso
+    ? rangeLabel(fromIso, asOfIso)
+    : `Last ${CHART_MONTHS} months, up to ${DAY_FMT.format(new Date(asOfIso))}`;
 }
 
-/** "30 days to 17 Nov 2026". */
+/** "last 30 days to 17 Nov 2026". */
 export function last30Label(asOfIso: string): string {
-  return `last 30 days to ${DAY_FMT.format(new Date(asOfIso))}`;
+  return `last ${ACTIVE_LONG_DAYS} days to ${DAY_FMT.format(new Date(asOfIso))}`;
 }
 
 /** First letter upper-case, for a range label that starts a line. */
