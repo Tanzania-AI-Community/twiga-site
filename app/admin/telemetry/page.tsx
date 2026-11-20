@@ -1,7 +1,8 @@
 import { Suspense } from "react";
 
 import { checkAdminAuth } from "@/lib/auth";
-import { capitalize, chartRangeLabel, parseAsOf, rangeLabel, TIME_ZONE, TIME_ZONE_OFFSET } from "@/lib/telemetry";
+import { capitalize, chartRangeLabel, isValidDay, parseAsOf, rangeLabel, TIME_ZONE, TIME_ZONE_OFFSET } from "@/lib/telemetry";
+import { env } from "@/env.mjs";
 import { DateRangeFilter } from "@/components/admin/telemetry/DateRangeFilter";
 import {
   ChurnCard,
@@ -66,7 +67,9 @@ function SectionTitle({
 }
 
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
-const one = (v: string | string[] | undefined) => (typeof v === "string" && DAY.test(v) ? v : "");
+/** A real calendar day ("2026-02-31" and "2026-13-01" are ignored), or "". */
+const one = (v: string | string[] | undefined) =>
+  typeof v === "string" && DAY.test(v) && isValidDay(v) ? v : "";
 
 /**
  * Telemetry: onboarding, retention, subjects and agent reliability for real
@@ -105,7 +108,8 @@ export default async function TelemetryPage({
           <div>
             <h1 className="text-xl font-bold text-slate-900">Telemetry</h1>
             <p className="text-xs text-muted-foreground">
-              Real teachers only: test accounts, the Twiga team, partners and numbers outside Tanzania are left out.
+              Real teachers only: excluded accounts (tests, the Twiga team, partners)
+              {env.TELEMETRY_PHONE_PREFIX ? ` and numbers not starting +${env.TELEMETRY_PHONE_PREFIX}` : ""} are left out.
             </p>
           </div>
           <span className="text-[11px] text-muted-foreground">

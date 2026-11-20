@@ -4,8 +4,9 @@ import { isAdminAuthenticated } from "@/lib/auth";
 import { getUnfinishedTeachers, type UnfinishedTeacher } from "@/lib/telemetry";
 
 /**
- * Teachers who didn't finish onboarding, for the follow-up panel. Names and
- * phone numbers are only sent when an admin opens the panel, never with the page.
+ * Teachers who didn't finish onboarding, for the follow-up panel. Their phone
+ * numbers are only sent when an admin opens the panel, never with the page.
+ * (The session log on the page shows teacher names, like the other admin pages.)
  */
 export async function loadUnfinishedTeachers(asOf: string, from = ""): Promise<UnfinishedTeacher[]> {
   if (!(await isAdminAuthenticated())) throw new Error("Not signed in");

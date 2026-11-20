@@ -6,6 +6,7 @@ import { Download, Loader2, Search, ShieldAlert, X } from "lucide-react";
 import { loadUnfinishedTeachers } from "@/app/admin/telemetry/actions";
 import type { UnfinishedTeacher } from "@/lib/telemetry";
 import { monthLabel, rangeLabel } from "@/lib/telemetry-format";
+import { buildCsv, formatPhone, STOPPED_AT_LABELS } from "@/components/admin/telemetry/csv";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,57 +19,12 @@ import {
 } from "@/components/ui/drawer";
 
 const STOPPED_AT: Record<string, { label: string; className: string }> = {
-  new: { label: "Never gave details", className: "border-red-200 bg-red-50 text-red-700" },
+  new: { label: STOPPED_AT_LABELS.new, className: "border-red-200 bg-red-50 text-red-700" },
   personal_info_submitted: {
-    label: "Stopped at subjects",
+    label: STOPPED_AT_LABELS.personal_info_submitted,
     className: "border-yellow-200 bg-yellow-50 text-yellow-800",
   },
 };
-
-/** "255712345678" -> "+255 712 345 678"; spaces keep spreadsheets from treating it as a number. */
-export function formatPhone(waId: string): string {
-  const m = /^(255)(\d{3})(\d{3})(\d{3})$/.exec(waId);
-  return m ? `+${m[1]} ${m[2]} ${m[3]} ${m[4]}` : `+${waId}`;
-}
-
-function csvCell(value: string | number | null): string {
-  let s = value === null ? "" : String(value);
-  // Stop spreadsheets from running a cell as a formula.
-  if (/^[=+\-@\t\r]/.test(s) && !/^\+\d/.test(s)) s = `'${s}`;
-  return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-}
-
-/** The CSV text for a list of teachers (exactly what the panel shows). */
-export function buildCsv(rows: UnfinishedTeacher[]): string {
-  const header = [
-    "Name",
-    "Phone",
-    "School",
-    "Region",
-    "Registered (EAT)",
-    "Stopped at",
-    "Messages sent",
-    "Last message (EAT)",
-    "Account status",
-  ];
-  const lines = rows.map((r) =>
-    [
-      r.name,
-      formatPhone(r.waId),
-      r.school,
-      r.region,
-      r.registered,
-      STOPPED_AT[r.stoppedAt]?.label ?? r.stoppedAt,
-      r.messages,
-      r.lastMessage,
-      r.accountState.replace(/_/g, " "),
-    ]
-      .map(csvCell)
-      .join(",")
-  );
-  // BOM so Excel opens Swahili names and dashes as UTF-8.
-  return "\ufeff" + [header.join(","), ...lines].join("\r\n");
-}
 
 function downloadCsv(rows: UnfinishedTeacher[], scope: string) {
   const blob = new Blob([buildCsv(rows)], { type: "text/csv;charset=utf-8" });
@@ -109,12 +65,24 @@ export function UnfinishedTeachersPanel({
   const [stage, setStage] = React.useState<string>("all");
   const [search, setSearch] = React.useState("");
 
+  // A new date range means a new list: drop the old one (and any error).
   React.useEffect(() => {
-    if (!open || rows !== null) return;
+    setRows(null);
+    setError(null);
+  }, [asOf, from]);
+
+  // Load when opened; reopening after an error retries.
+  React.useEffect(() => {
+    if (open && error) setError(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  React.useEffect(() => {
+    if (!open || rows !== null || error) return;
     loadUnfinishedTeachers(asOf, from)
       .then(setRows)
       .catch(() => setError("Couldn't load the list. Try signing in again."));
-  }, [open, rows, asOf, from]);
+  }, [open, rows, error, asOf, from]);
 
   const months = React.useMemo(
     () => Array.from(new Set((rows ?? []).map((r) => r.month))).sort().reverse(),
