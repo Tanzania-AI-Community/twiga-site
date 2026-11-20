@@ -6,6 +6,8 @@ import {
   BarChart,
   CartesianGrid,
   Legend,
+  Line,
+  LineChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -14,6 +16,7 @@ import {
 
 import { Button } from "@/components/ui/button";
 import { UnfinishedTeachersPanel } from "@/components/admin/telemetry/UnfinishedTeachersPanel";
+import { CHART_COLORS } from "@/lib/telemetry-format";
 import { cn } from "@/lib/utils";
 
 // Same chart styling as the dashboard's registrations chart.
@@ -23,7 +26,9 @@ const tooltipStyle: React.CSSProperties = {
   fontSize: 12,
   boxShadow: "0 4px 12px rgb(0 0 0 / 0.08)",
 };
-const axisTick = { fontSize: 11, fill: "#8a988e" } as const;
+// Chart chrome (axes, grid, tooltip text), same as the dashboard charts.
+const INK = { strong: "#0f172a", body: "#334155", muted: "#475569", axis: "#8a988e", grid: "#eef2ec" } as const;
+const axisTick = { fontSize: 11, fill: INK.axis } as const;
 const legendStyle: React.CSSProperties = { fontSize: 11, paddingTop: 4 };
 
 export interface Series {
@@ -38,14 +43,17 @@ export function MonthlyBars({
   series,
   height = 260,
   onBarClick,
+  stacked: stackedProp,
 }: {
   data: Record<string, string | number>[];
   series: Series[];
   height?: number;
+  /** Stack the series (parts of one total). Defaults to true for 2+ series. */
+  stacked?: boolean;
   /** Called with the clicked bar's index; also makes bars show a pointer. */
   onBarClick?: (index: number) => void;
 }) {
-  const stacked = series.length > 1;
+  const stacked = stackedProp ?? series.length > 1;
   return (
     <div style={{ height }}>
       <ResponsiveContainer width="100%" height="100%">
@@ -58,7 +66,7 @@ export function MonthlyBars({
           } : undefined}
           style={onBarClick ? { cursor: "pointer" } : undefined}
         >
-          <CartesianGrid vertical={false} stroke="#eef2ec" />
+          <CartesianGrid vertical={false} stroke={INK.grid} />
           <XAxis
             dataKey="label"
             tickLine={false}
@@ -71,15 +79,15 @@ export function MonthlyBars({
           <Tooltip
             cursor={{ fill: "rgba(22,163,74,0.06)" }}
             contentStyle={tooltipStyle}
-            labelStyle={{ color: "#0f172a", fontWeight: 600 }}
-            itemStyle={{ color: "#334155", padding: 0 }}
+            labelStyle={{ color: INK.strong, fontWeight: 600 }}
+            itemStyle={{ color: INK.body, padding: 0 }}
           />
-          {stacked && (
+          {series.length > 1 && (
             <Legend
               iconType="square"
               iconSize={9}
               wrapperStyle={legendStyle}
-              formatter={(value) => <span style={{ color: "#475569" }}>{value}</span>}
+              formatter={(value) => <span style={{ color: INK.muted }}>{value}</span>}
             />
           )}
           {series.map((s, i) => (
@@ -148,8 +156,8 @@ export function ToolTrend({
       <MonthlyBars
         data={data}
         series={[
-          { key: "succeeded", name: "Succeeded", color: "#16a34a" },
-          { key: "failed", name: "Failed", color: "#dc2626" },
+          { key: "succeeded", name: "Succeeded", color: CHART_COLORS.primary },
+          { key: "failed", name: "Failed", color: CHART_COLORS.failure },
         ]}
       />
     </div>
@@ -176,8 +184,8 @@ export function RegistrationsWithFollowUp({
       <MonthlyBars
         data={data}
         series={[
-          { key: "finished", name: "Finished onboarding", color: "#16a34a" },
-          { key: "notFinished", name: "Didn't finish", color: "#bbf7d0" },
+          { key: "finished", name: "Finished onboarding", color: CHART_COLORS.primary },
+          { key: "notFinished", name: "Didn't finish", color: CHART_COLORS.light },
         ]}
         onBarClick={(i) => {
           setMonth(data[i]?.month ?? null);
@@ -200,5 +208,54 @@ export function RegistrationsWithFollowUp({
       </p>
       <UnfinishedTeachersPanel asOf={asOf} from={from} open={open} onOpenChange={setOpen} month={month} onMonthChange={setMonth} />
     </>
+  );
+}
+
+/** Monthly lines with a unit (for example seconds), e.g. typical and slow reply time. */
+export function MonthlyLines({
+  data,
+  series,
+  unit,
+  height = 200,
+}: {
+  data: Record<string, string | number | null>[];
+  series: Series[];
+  unit: string;
+  height?: number;
+}) {
+  return (
+    <div style={{ height }}>
+      <ResponsiveContainer width="100%" height="100%">
+        <LineChart data={data} margin={{ top: 4, right: 8, left: -18, bottom: 0 }}>
+          <CartesianGrid vertical={false} stroke={INK.grid} />
+          <XAxis dataKey="label" tickLine={false} axisLine={false} tick={axisTick} minTickGap={12} interval="preserveStartEnd" />
+          <YAxis tickLine={false} axisLine={false} tick={axisTick} unit={unit} />
+          <Tooltip
+            contentStyle={tooltipStyle}
+            labelStyle={{ color: INK.strong, fontWeight: 600 }}
+            itemStyle={{ color: INK.body, padding: 0 }}
+            formatter={(v) => (typeof v === "number" ? `${v.toFixed(1)}${unit}` : "–")}
+          />
+          <Legend
+            iconType="plainline"
+            iconSize={12}
+            wrapperStyle={legendStyle}
+            formatter={(value) => <span style={{ color: INK.muted }}>{value}</span>}
+          />
+          {series.map((s) => (
+            <Line
+              key={s.key}
+              type="monotone"
+              dataKey={s.key}
+              name={s.name}
+              stroke={s.color}
+              strokeWidth={2}
+              dot={{ r: 3, fill: s.color, strokeWidth: 0 }}
+              connectNulls
+            />
+          ))}
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
   );
 }

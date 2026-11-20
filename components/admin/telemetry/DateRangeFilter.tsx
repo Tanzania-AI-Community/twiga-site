@@ -4,13 +4,13 @@ import * as React from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { CalendarRange, Loader2 } from "lucide-react";
 
+import { tzDay } from "@/lib/telemetry-format";
 import { cn } from "@/lib/utils";
 
-const EAT_DAY = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Dar_es_Salaam" });
 
 /** YYYY-MM-DD in Tanzania time, `days` before today. */
 function eatDay(daysAgo = 0): string {
-  return EAT_DAY.format(new Date(Date.now() - daysAgo * 86_400_000));
+  return tzDay(new Date(Date.now() - daysAgo * 86_400_000));
 }
 
 type Preset = { key: string; label: string; from: () => string; to: () => string };

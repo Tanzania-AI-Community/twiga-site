@@ -1,6 +1,6 @@
 import { BookOpen } from "lucide-react";
 
-import { getGradeBreakdown, getSubjects, gradeRange, rangeLabel, subjectLabel } from "@/lib/telemetry";
+import { getClassExtras, getGradeBreakdown, getSubjects, gradeRange, rangeLabel, subjectLabel } from "@/lib/telemetry";
 import { SubjectsTableClient } from "@/components/admin/telemetry/SubjectsTableClient";
 import { EmptyState, TelemetryCard } from "@/components/admin/telemetry/shared";
 
@@ -10,9 +10,15 @@ import { EmptyState, TelemetryCard } from "@/components/admin/telemetry/shared";
  * without teachers, and subjects Twiga knows that aren't set up at all.
  */
 export async function SubjectsTable({ asOf, from = "" }: { asOf: string; from?: string }) {
-  const [{ rows, notSetUp }, grades] = await Promise.all([getSubjects(asOf, from), getGradeBreakdown(asOf, from)]);
+  const [{ rows, notSetUp }, grades, extras] = await Promise.all([
+    getSubjects(asOf, from),
+    getGradeBreakdown(asOf, from),
+    getClassExtras(asOf, from),
+  ]);
   const withTeachers = rows.filter((r) => r.teachers > 0);
   const noTeachers = rows.filter((r) => r.teachers === 0);
+  const books = (subject: string) =>
+    extras.filter((e) => e.subject === subject).reduce((sum, e) => sum + e.textbooks, 0);
 
   return (
     <TelemetryCard
@@ -24,7 +30,7 @@ export async function SubjectsTable({ asOf, from = "" }: { asOf: string; from?: 
       {withTeachers.length === 0 ? (
         <EmptyState title="No subjects chosen yet" hint="Subjects appear once teachers finish onboarding." />
       ) : (
-        <SubjectsTableClient rows={withTeachers} grades={grades} />
+        <SubjectsTableClient rows={withTeachers} grades={grades} extras={extras} />
       )}
 
       {(noTeachers.length > 0 || notSetUp.length > 0) && (
@@ -38,7 +44,11 @@ export async function SubjectsTable({ asOf, from = "" }: { asOf: string; from?: 
                 {noTeachers.map((s) => (
                   <span key={s.subject} className="rounded-full border border-yellow-200 bg-yellow-50 px-2 py-0.5 text-xs text-yellow-800">
                     {subjectLabel(s.subject)}
-                    {s.grades.length > 0 && <span className="text-yellow-700/70"> · {gradeRange(s.grades)}</span>}
+                    <span className="text-yellow-700/70">
+                      {" · "}
+                      {s.grades.length > 0 ? gradeRange(s.grades) : "switched off"}
+                      {books(s.subject) > 0 && ` · ${books(s.subject)} textbook${books(s.subject) === 1 ? "" : "s"}`}
+                    </span>
                   </span>
                 ))}
               </div>

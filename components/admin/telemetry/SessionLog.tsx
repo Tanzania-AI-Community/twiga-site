@@ -4,15 +4,10 @@ import * as React from "react";
 import { AlertTriangle, Check } from "lucide-react";
 
 import type { SessionEntry } from "@/lib/telemetry";
-import { gradeLabel, subjectLabel, TOOL_LABELS } from "@/lib/telemetry-format";
+import { formatMinutes, gradeLabel, subjectLabel, TOOL_LABELS } from "@/lib/telemetry-format";
 import { cn } from "@/lib/utils";
 import { td, th } from "@/components/admin/telemetry/shared";
 
-function duration(min: number): string {
-  if (min < 1) return "<1 min";
-  if (min < 60) return `${Math.round(min)} min`;
-  return `${Math.floor(min / 60)} h ${Math.round(min % 60)} min`;
-}
 
 /** Recent / longest sessions with a two-way toggle. No message text is shown. */
 export function SessionLog({ recent, longest }: { recent: SessionEntry[]; longest: SessionEntry[] }) {
@@ -83,7 +78,7 @@ export function SessionLog({ recent, longest }: { recent: SessionEntry[]; longes
                   )}
                 </td>
                 <td className={`${td} text-right`}>{r.messages}</td>
-                <td className={`${td} text-right whitespace-nowrap`}>{duration(r.minutes)}</td>
+                <td className={`${td} text-right whitespace-nowrap`}>{formatMinutes(r.minutes)}</td>
                 <td className={`${td} text-right`}>
                   {r.hadFailure ? (
                     <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-red-600">

@@ -2,55 +2,110 @@ import { cache } from "react";
 import { sql, type SQL } from "drizzle-orm";
 
 import { db } from "@/db";
-import { GRADE_ORDER, sortGrades } from "@/lib/telemetry-format";
+import { env } from "@/env.mjs";
+import { GRADE_ORDER, sortGrades, TIME_ZONE } from "@/lib/telemetry-format";
 
 export * from "@/lib/telemetry-format";
 
 /**
  * Telemetry: teacher onboarding, retention, subject and agent-reliability KPIs.
  *
- * Every number follows the definitions of the Twiga teacher analytics report
- * (twiga-analytics/analytics_schema.sql and metrics.py), so the page and the
- * report agree. The report's views don't exist in production, so each query
- * carries its own CTEs (see `base`). Postgres skips the CTEs a query doesn't
- * reference.
+ * Every number follows the definitions of the Twiga teacher analytics report,
+ * so the page and the report agree. Each query carries its own CTEs (see
+ * `base`), so production needs no extra views or tables. Postgres skips the
+ * CTEs a query doesn't reference.
  *
  * Privacy: tool-failure and reply-type detection read message content inside
- * SQL. Only counts and dates ever leave the database.
+ * SQL, and so does the physics/chemistry demand count, which matches words in
+ * teachers' own messages. Only counts, dates and short tool error labels
+ * leave the database; teachers' message text never does.
  *
  * Every query takes an "as of" time. Production uses now; passing the time of
  * the last message in a snapshot reproduces the report exactly.
  */
 
-const TZ = "Africa/Dar_es_Salaam";
+const TZ = TIME_ZONE;
+
+// ---------------------------------------------------------------------------
+// Definitions. Change them here and every figure follows.
+// ---------------------------------------------------------------------------
+
+/** A new session starts after this many minutes without a teacher message. */
+const SESSION_GAP_MIN = 30;
+/** Tool calls up to this many minutes after a session's last message still belong to it. */
+const TOOL_GRACE_MIN = 10;
+/** "Active recently" windows, counted back from the end of the range. */
+const ACTIVE_LONG_DAYS = 30;
+const ACTIVE_SHORT_DAYS = 7;
+/** Retention windows, in days after a teacher's first message: [start, end). */
+const WEEK2 = { start: 7, end: 14 };
+const MONTH2 = { start: 30, end: 60 };
+/** A teacher message counts as unanswered if Twiga hasn't replied within this window. */
+const REPLY_WINDOW_HOURS = 24;
+/** Monthly charts cover this many months when the range is all time. */
+const CHART_MONTHS = 12;
+/** List lengths. */
+const PEAK_DAYS = 8;
+const SESSION_LOG_ROWS = 12;
+const TOP_ERRORS = 10;
 
 /**
- * Accounts that are not real Tanzanian teachers: test schools, team and
- * partner schools, pilot users and numbers outside Tanzania. Keep in sync
- * with analytics.excluded_accounts in the analytics repo.
+ * Text patterns (PostgreSQL regular expressions, case-insensitive). They follow
+ * Twiga's own wording, so update them when the chatbot's messages change.
  */
-const EXCLUDED_SCHOOLS = [
-  "test",
-  "vvv",
-  "tt",
-  "kak",
-  "narnia",
-  "kth",
-  "ai community",
-  "enabel",
-  "school3",
-  "school 2",
+const TOOL_ERROR_PATTERN = String.raw`^\s*(\{\s*"error"|error|failed|exception)|error executing`;
+/** Problem replies, by the standard sentence Twiga opens them with. First match wins. */
+const REPLY_PATTERNS: [type: string, pattern: string][] = [
+  ["generic_failure", String.raw`^Sorry, something went wrong on my end`],
+  ["refusal", String.raw`^Sorry, I can't help with that request\.`],
+  ["non_text_rejected", String.raw`^Sorry, I only understand textual messages`],
+  ["english_only", String.raw`^Sorry.{0,40}support English only`],
+  ["too_long", String.raw`^Sorry, the message you sent is too long`],
+  ["tool_failure_apology", String.raw`^Sorry, I couldn't generate`],
 ];
-const EXCLUDED_IDS = [3, 6, 13, 16, 7, 11, 96, 269, 272];
+/** Subjects teachers ask for that Twiga doesn't offer yet (English and Swahili). */
+const PHYSICS_PATTERN = String.raw`\m(physics|fizikia)\M`;
+const CHEMISTRY_PATTERN = String.raw`\m(chemistry|kemia)\M`;
+const ASKED_MISSING_PATTERN = String.raw`(physics|chemistry|fizikia|kemia).{0,40}(not there|haipo|not among|no option|not see|didn.t see|missing|not available|why)|(where|no|not see|didn.t see|no option for|what about).{0,25}(physics|chemistry|fizikia|kemia)|(teach|nafundisha).{0,30}(physics|chemistry)`;
 
-const excludedSchools = sql.join(
-  EXCLUDED_SCHOOLS.map((s) => sql`${s}`),
-  sql`, `
+const replyTypeCase = sql.join(
+  [
+    sql`case`,
+    ...REPLY_PATTERNS.map(([type, pattern]) => sql`when m.content ~* ${pattern} then ${type}`),
+    sql`else 'normal' end`,
+  ],
+  sql` `
 );
-const excludedIds = sql.join(
-  EXCLUDED_IDS.map((id) => sql`${id}`),
-  sql`, `
-);
+
+const days = (n: number) => sql.raw(`interval '${Math.trunc(n)} days'`);
+const minutes = (n: number) => sql.raw(`interval '${Math.trunc(n)} minutes'`);
+
+/**
+ * Accounts that aren't real teachers, from the environment (see .env.example):
+ * TELEMETRY_EXCLUDED_USER_IDS, TELEMETRY_EXCLUDED_SCHOOLS and the optional
+ * TELEMETRY_PHONE_PREFIX (only numbers with that country code count).
+ */
+function realTeacherFilter(): SQL {
+  const parts: SQL[] = [];
+  if (env.TELEMETRY_EXCLUDED_SCHOOLS.length) {
+    const schools = sql.join(
+      env.TELEMETRY_EXCLUDED_SCHOOLS.map((s) => sql`${s}`),
+      sql`, `
+    );
+    parts.push(sql`lower(trim(coalesce(u.school_name, ''))) not in (${schools})`);
+  }
+  if (env.TELEMETRY_EXCLUDED_USER_IDS.length) {
+    const ids = sql.join(
+      env.TELEMETRY_EXCLUDED_USER_IDS.map((id) => sql`${id}`),
+      sql`, `
+    );
+    parts.push(sql`u.id not in (${ids})`);
+  }
+  if (env.TELEMETRY_PHONE_PREFIX) {
+    parts.push(sql`u.wa_id like ${env.TELEMETRY_PHONE_PREFIX + "%"}`);
+  }
+  return parts.length ? sql.join(parts, sql` and `) : sql`true`;
+}
 
 /** Shared CTEs: the report's analytics views, bounded by the as-of time. */
 function base(asOf: Date, from: Date | null): SQL {
@@ -60,7 +115,7 @@ p as (
     ${from ? from.toISOString() : null}::timestamptz as start_ts,
     -- Monthly charts: the range, or the last 12 months when the range is all time.
     coalesce(${from ? from.toISOString() : null}::timestamptz,
-      (date_trunc('month', ${asOf.toISOString()}::timestamptz at time zone ${TZ}) - interval '11 months') at time zone ${TZ}
+      (date_trunc('month', ${asOf.toISOString()}::timestamptz at time zone ${TZ}) - ${sql.raw(`interval '${CHART_MONTHS - 1} months'`)}) at time zone ${TZ}
     ) as chart_from
 ),
 teachers as (
@@ -68,11 +123,10 @@ teachers as (
   from users u
   where u.role::text = 'teacher'
     and u.created_at <= (select as_of from p)
-    and lower(trim(coalesce(u.school_name, ''))) not in (${excludedSchools})
-    and u.id not in (${excludedIds})
+    and ${realTeacherFilter()}
 ),
 teacher_msgs as (
-  select m.user_id, m.created_at
+  select m.user_id, m.created_at, m.content
   from messages m join teachers t on t.id = m.user_id
   where m.role::text = 'user'
     and coalesce(m.content, '') not like '[FLOW_COMPLETED]%'
@@ -90,22 +144,14 @@ tool_calls as (
     and m.created_at <= (select as_of from p)
 ),
 tool_results as (
-  select m.user_id, m.tool_name, m.created_at,
-    (m.content ~* '^\\s*(\\{\\s*"error"|error|failed|exception)' or m.content ~* 'error executing') as is_error
+  select m.user_id, m.tool_name, m.created_at, m.content,
+    coalesce(m.content ~* ${TOOL_ERROR_PATTERN}, false) as is_error
   from messages m join teachers t on t.id = m.user_id
   where m.role::text = 'tool' and m.created_at <= (select as_of from p)
 ),
 assistant_replies as (
   select m.user_id, m.created_at,
-    case
-      when m.content like 'Sorry, something went wrong on my end%' then 'generic_failure'
-      when m.content like 'Sorry, I can''t help with that request.%' then 'refusal'
-      when m.content like 'Sorry, I only understand textual messages%' then 'non_text_rejected'
-      when m.content ~* '^Sorry.{0,40}support English only' then 'english_only'
-      when m.content like 'Sorry, the message you sent is too long%' then 'too_long'
-      when m.content ~* '^Sorry, I couldn''t generate' then 'tool_failure_apology'
-      else 'normal'
-    end as reply_type
+    ${replyTypeCase} as reply_type
   from messages m join teachers t on t.id = m.user_id
   where m.role::text = 'assistant' and m.created_at <= (select as_of from p)
 ),
@@ -118,7 +164,7 @@ sessions as (
     from (
       select tm.*, case
         when lag(created_at) over w is null
-          or created_at - lag(created_at) over w > interval '30 minutes' then 1 else 0 end as new_s
+          or created_at - lag(created_at) over w > ${minutes(SESSION_GAP_MIN)} then 1 else 0 end as new_s
       from teacher_msgs tm window w as (partition by user_id order by created_at)
     ) x
   ) y
@@ -157,16 +203,16 @@ session_detail as (
   select s.user_id, s.sess_no, s.started_at, s.minutes, s.user_messages,
     x.tools, x.subjects,
     (exists(select 1 from tool_results tr where tr.user_id = s.user_id and tr.is_error
-        and tr.created_at between s.started_at and s.ended_at + interval '10 minutes')
+        and tr.created_at between s.started_at and s.ended_at + ${minutes(TOOL_GRACE_MIN)})
      or exists(select 1 from assistant_replies ar where ar.user_id = s.user_id
         and ar.reply_type in ('generic_failure', 'tool_failure_apology')
-        and ar.created_at between s.started_at and s.ended_at + interval '10 minutes')) as had_failure
+        and ar.created_at between s.started_at and s.ended_at + ${minutes(TOOL_GRACE_MIN)})) as had_failure
   from sessions s
   left join lateral (
     select array_agg(distinct tc.tool_name) filter (where tc.tool_name is not null) as tools,
       array_agg(distinct tc.subject || ':' || g.grade_level::text) filter (where tc.subject is not null) as subjects
     from tool_calls tc left join classes g on g.id = tc.class_id
-    where tc.user_id = s.user_id and tc.created_at between s.started_at and s.ended_at + interval '10 minutes'
+    where tc.user_id = s.user_id and tc.created_at between s.started_at and s.ended_at + ${minutes(TOOL_GRACE_MIN)}
   ) x on true
 ),
 session_detail_r as (select * from session_detail where started_at >= coalesce((select start_ts from p), '-infinity'))`;
@@ -221,8 +267,8 @@ select
   count(*) filter (where tool_calls > 0) as got_help,
   count(*) filter (where ob = 'completed' and active_days >= 2) as second_day,
   count(*) filter (where ob = 'completed' and active_days >= 5) as five_days,
-  count(*) filter (where ob = 'completed' and last_msg >= (select as_of from p) - interval '30 days') as active_30,
-  count(*) filter (where ob = 'completed' and last_msg >= (select as_of from p) - interval '7 days') as active_7,
+  count(*) filter (where ob = 'completed' and last_msg >= (select as_of from p) - ${days(ACTIVE_LONG_DAYS)}) as active_30,
+  count(*) filter (where ob = 'completed' and last_msg >= (select as_of from p) - ${days(ACTIVE_SHORT_DAYS)}) as active_7,
   max(last_msg)::text as last_message
 from cohort`
   );
@@ -268,17 +314,17 @@ export const getRetention = cache(async (asOfIso: string, fromIso: string = ""):
 f as (
   select f.first_msg,
     exists(select 1 from teacher_msgs m where m.user_id = f.id
-      and m.created_at >= f.first_msg + interval '7 days' and m.created_at < f.first_msg + interval '14 days') as w2,
+      and m.created_at >= f.first_msg + ${days(WEEK2.start)} and m.created_at < f.first_msg + ${days(WEEK2.end)}) as w2,
     exists(select 1 from teacher_msgs m where m.user_id = f.id
-      and m.created_at >= f.first_msg + interval '30 days' and m.created_at < f.first_msg + interval '60 days') as m2
+      and m.created_at >= f.first_msg + ${days(MONTH2.start)} and m.created_at < f.first_msg + ${days(MONTH2.end)}) as m2
   from cohort f where f.ob = 'completed' and f.first_msg is not null
 )
 select to_char(date_trunc('month', first_msg at time zone ${TZ}), 'YYYY-MM') as month,
   count(*) as teachers,
   count(*) filter (where w2) as w2,
   count(*) filter (where m2) as m2,
-  bool_and(first_msg <= (select as_of from p) - interval '14 days') as ok_w2,
-  bool_and(first_msg <= (select as_of from p) - interval '60 days') as ok_m2
+  bool_and(first_msg <= (select as_of from p) - ${days(WEEK2.end)}) as ok_w2,
+  bool_and(first_msg <= (select as_of from p) - ${days(MONTH2.end)}) as ok_m2
 from f group by 1 order by 1`
   );
   const cohorts: Cohort[] = rows.map((r) => ({
@@ -335,9 +381,9 @@ export const getSubjects = cache(async (asOfIso: string, fromIso: string = ""): 
 win as (
   select f.id, f.first_msg, f.last_msg,
     exists(select 1 from teacher_msgs m where m.user_id = f.id
-      and m.created_at >= f.first_msg + interval '7 days' and m.created_at < f.first_msg + interval '14 days') as w2,
+      and m.created_at >= f.first_msg + ${days(WEEK2.start)} and m.created_at < f.first_msg + ${days(WEEK2.end)}) as w2,
     exists(select 1 from teacher_msgs m where m.user_id = f.id
-      and m.created_at >= f.first_msg + interval '30 days' and m.created_at < f.first_msg + interval '60 days') as m2
+      and m.created_at >= f.first_msg + ${days(MONTH2.start)} and m.created_at < f.first_msg + ${days(MONTH2.end)}) as m2
   from cohort f where f.ob = 'completed'
 ),
 reg as (select ts.subject, w.* from teacher_subjects ts join win w on w.id = ts.teacher_id),
@@ -349,7 +395,7 @@ sess as (
   select subject, count(*) as sessions, max(minutes) as longest_min from (
     select distinct s.user_id, s.sess_no, s.minutes, tc.subject
     from sessions_r s join tool_calls tc on tc.user_id = s.user_id
-      and tc.created_at between s.started_at and s.ended_at + interval '10 minutes'
+      and tc.created_at between s.started_at and s.ended_at + ${minutes(TOOL_GRACE_MIN)}
     where tc.subject is not null
   ) z group by 1
 )
@@ -357,11 +403,11 @@ select s.name::text as subject,
   (select coalesce(array_agg(c.grade_level::text), '{}') from classes c
      where c.subject_id = s.id and c.status::text = 'active') as grades,
   count(r.id) as teachers,
-  count(r.id) filter (where r.last_msg >= (select as_of from p) - interval '30 days') as active_30,
-  count(r.id) filter (where r.first_msg <= (select as_of from p) - interval '14 days') as eligible_w2,
-  count(r.id) filter (where r.first_msg <= (select as_of from p) - interval '14 days' and r.w2) as kept_w2,
-  count(r.id) filter (where r.first_msg <= (select as_of from p) - interval '60 days') as eligible_m2,
-  count(r.id) filter (where r.first_msg <= (select as_of from p) - interval '60 days' and r.m2) as kept_m2,
+  count(r.id) filter (where r.last_msg >= (select as_of from p) - ${days(ACTIVE_LONG_DAYS)}) as active_30,
+  count(r.id) filter (where r.first_msg <= (select as_of from p) - ${days(WEEK2.end)}) as eligible_w2,
+  count(r.id) filter (where r.first_msg <= (select as_of from p) - ${days(WEEK2.end)} and r.w2) as kept_w2,
+  count(r.id) filter (where r.first_msg <= (select as_of from p) - ${days(MONTH2.end)}) as eligible_m2,
+  count(r.id) filter (where r.first_msg <= (select as_of from p) - ${days(MONTH2.end)} and r.m2) as kept_m2,
   coalesce(max(u.using_teachers), 0) as using_teachers,
   coalesce(max(se.sessions), 0) as sessions,
   max(se.longest_min) as longest_min
@@ -425,9 +471,9 @@ export const getGradeBreakdown = cache(async (asOfIso: string, fromIso: string =
 win as (
   select f.id, f.first_msg, f.last_msg,
     exists(select 1 from teacher_msgs m where m.user_id = f.id
-      and m.created_at >= f.first_msg + interval '7 days' and m.created_at < f.first_msg + interval '14 days') as w2,
+      and m.created_at >= f.first_msg + ${days(WEEK2.start)} and m.created_at < f.first_msg + ${days(WEEK2.end)}) as w2,
     exists(select 1 from teacher_msgs m where m.user_id = f.id
-      and m.created_at >= f.first_msg + interval '30 days' and m.created_at < f.first_msg + interval '60 days') as m2
+      and m.created_at >= f.first_msg + ${days(MONTH2.start)} and m.created_at < f.first_msg + ${days(MONTH2.end)}) as m2
   from cohort f where f.ob = 'completed'
 ),
 reg as (select distinct tc.class_id, w.* from teachers_classes tc join win w on w.id = tc.teacher_id),
@@ -439,17 +485,17 @@ sess as (
   select class_id, count(*) as sessions, max(minutes) as longest_min from (
     select distinct s.user_id, s.sess_no, s.minutes, tc.class_id
     from sessions_r s join tool_calls tc on tc.user_id = s.user_id
-      and tc.created_at between s.started_at and s.ended_at + interval '10 minutes'
+      and tc.created_at between s.started_at and s.ended_at + ${minutes(TOOL_GRACE_MIN)}
     where tc.class_id is not null
   ) z group by 1
 )
 select s.name::text as subject, c.grade_level::text as grade, (c.status::text = 'active') as active,
   count(r.id) as teachers,
-  count(r.id) filter (where r.last_msg >= (select as_of from p) - interval '30 days') as active_30,
-  count(r.id) filter (where r.first_msg <= (select as_of from p) - interval '14 days') as eligible_w2,
-  count(r.id) filter (where r.first_msg <= (select as_of from p) - interval '14 days' and r.w2) as kept_w2,
-  count(r.id) filter (where r.first_msg <= (select as_of from p) - interval '60 days') as eligible_m2,
-  count(r.id) filter (where r.first_msg <= (select as_of from p) - interval '60 days' and r.m2) as kept_m2,
+  count(r.id) filter (where r.last_msg >= (select as_of from p) - ${days(ACTIVE_LONG_DAYS)}) as active_30,
+  count(r.id) filter (where r.first_msg <= (select as_of from p) - ${days(WEEK2.end)}) as eligible_w2,
+  count(r.id) filter (where r.first_msg <= (select as_of from p) - ${days(WEEK2.end)} and r.w2) as kept_w2,
+  count(r.id) filter (where r.first_msg <= (select as_of from p) - ${days(MONTH2.end)}) as eligible_m2,
+  count(r.id) filter (where r.first_msg <= (select as_of from p) - ${days(MONTH2.end)} and r.m2) as kept_m2,
   coalesce(max(u.using_teachers), 0) as using_teachers,
   coalesce(max(se.sessions), 0) as sessions,
   max(se.longest_min) as longest_min
@@ -522,7 +568,7 @@ order by 1`
         sql`
 select (created_at at time zone ${TZ})::date::text as day, count(*) as registered,
   count(*) filter (where ob = 'completed') as finished
-from cohort group by 1 order by 2 desc, 1 desc limit 8`
+from cohort group by 1 order by 2 desc, 1 desc limit ${PEAK_DAYS}`
       ),
     ]);
     return {
@@ -583,8 +629,8 @@ export const getReliability = cache(async (asOfIso: string, fromIso: string = ""
     query<Record<string, unknown>>(asOf, fromDate(fromIso),
       sql`
 select tool_name as tool,
-  count(*) filter (where created_at >= (select as_of from p) - interval '30 days') as calls_30,
-  count(*) filter (where is_error and created_at >= (select as_of from p) - interval '30 days') as errors_30,
+  count(*) filter (where created_at >= (select as_of from p) - ${days(ACTIVE_LONG_DAYS)}) as calls_30,
+  count(*) filter (where is_error and created_at >= (select as_of from p) - ${days(ACTIVE_LONG_DAYS)}) as errors_30,
   count(*) filter (where created_at >= coalesce((select start_ts from p), '-infinity')) as calls,
   count(*) filter (where is_error and created_at >= coalesce((select start_ts from p), '-infinity')) as errors,
   (max(created_at) filter (where is_error) at time zone ${TZ})::date::text as last_failure,
@@ -603,8 +649,8 @@ group by 1, 2 order by 1, 2`
     query<Record<string, unknown>>(asOf, fromDate(fromIso),
       sql`
 select reply_type as type,
-  count(*) filter (where created_at >= (select as_of from p) - interval '30 days') as last_30,
-  count(distinct user_id) filter (where created_at >= (select as_of from p) - interval '30 days') as teachers_30,
+  count(*) filter (where created_at >= (select as_of from p) - ${days(ACTIVE_LONG_DAYS)}) as last_30,
+  count(distinct user_id) filter (where created_at >= (select as_of from p) - ${days(ACTIVE_LONG_DAYS)}) as teachers_30,
   count(*) filter (where created_at >= coalesce((select start_ts from p), '-infinity')) as total,
   (max(created_at) at time zone ${TZ})::date::text as last_seen
 from assistant_replies group by 1 order by 4 desc`
@@ -753,14 +799,14 @@ const LENGTH_BUCKETS = ["Single message", "Under 5 min", "5–15 min", "15–30 
 
 export const getSessions = cache(async (asOfIso: string, fromIso: string = ""): Promise<SessionStats> => {
   const asOf = new Date(asOfIso);
-  const last30 = sql`started_at >= (select as_of from p) - interval '30 days'`;
+  const last30 = sql`started_at >= (select as_of from p) - ${days(ACTIVE_LONG_DAYS)}`;
   const inRange = sql`started_at >= coalesce((select start_ts from p), '-infinity')`;
   const entry = (order: SQL) => sql`
 select to_char(d.started_at at time zone ${TZ}, 'YYYY-MM-DD HH24:MI') as started,
   coalesce(nullif(trim(u.name), ''), 'Teacher #' || u.id) as teacher,
   d.minutes, d.user_messages, d.tools, d.subjects, d.had_failure
 from session_detail_r d join users u on u.id = d.user_id
-order by ${order} limit 12`;
+order by ${order} limit ${SESSION_LOG_ROWS}`;
 
   const [[summary], activities, lengths, months, longest, recent] = await Promise.all([
     query<Record<string, unknown>>(asOf, fromDate(fromIso), sql`
@@ -847,5 +893,332 @@ group by 1 order by 1`),
     })),
     longest: longest.map(toEntry),
     recent: recent.map(toEntry),
+  };
+});
+
+// ---------------------------------------------------------------------------
+// Completeness: the rest of the teacher analytics report
+// ---------------------------------------------------------------------------
+
+/** Region text as teachers typed it, tidied the same way as the report. */
+const REGION = sql`initcap(regexp_replace(lower(trim(coalesce(nullif(u.region, ''), '(not given)'))), '\\s+', ' ', 'g'))`;
+
+export interface StuckRow {
+  accountState: string;
+  stoppedAt: string;
+  teachers: number;
+}
+
+export interface ChurnRow {
+  /** True for teachers who hit a failure in their first session. */
+  hadFailure: boolean;
+  teachers: number;
+  cameBack: number;
+  secondDay: number;
+}
+
+export interface Onboarding2 {
+  stuck: StuckRow[];
+  churn: ChurnRow[];
+}
+
+/** Where unfinished teachers sit, and whether an early failure changes coming back. Registered in range. */
+export const getOnboardingDetail = cache(async (asOfIso: string, fromIso: string = ""): Promise<Onboarding2> => {
+  const asOf = new Date(asOfIso);
+  const [stuck, churn] = await Promise.all([
+    query<Record<string, unknown>>(asOf, fromDate(fromIso), sql`
+select u.state::text as account_state, coalesce(c.ob, 'new') as stopped_at, count(*) as teachers
+from cohort c join users u on u.id = c.id
+where c.ob is distinct from 'completed'
+group by 1, 2 order by 3 desc`),
+    query<Record<string, unknown>>(asOf, fromDate(fromIso), sql`,
+first_s as (
+  select user_id, started_at, ended_at + ${minutes(TOOL_GRACE_MIN)} as ended_at from sessions where sess_no = 1
+),
+errs as (
+  select user_id, created_at from assistant_replies where reply_type in ('generic_failure', 'tool_failure_apology')
+  union all select user_id, created_at from tool_results where is_error
+),
+f as (
+  select c.id, c.active_days,
+    (select count(*) from sessions s where s.user_id = c.id) as n_sessions,
+    exists(select 1 from errs e join first_s s on s.user_id = e.user_id
+           where e.user_id = c.id and e.created_at between s.started_at and s.ended_at) as err_first
+  from cohort c
+  where c.ob = 'completed' and c.first_msg <= (select as_of from p) - ${days(WEEK2.end)}
+)
+select err_first, count(*) as teachers,
+  count(*) filter (where n_sessions >= 2) as came_back,
+  count(*) filter (where active_days >= 2) as second_day
+from f group by 1 order by 1`),
+  ]);
+  return {
+    stuck: stuck.map((r) => ({
+      accountState: String(r.account_state),
+      stoppedAt: String(r.stopped_at),
+      teachers: n(r.teachers),
+    })),
+    churn: churn.map((r) => ({
+      hadFailure: Boolean(r.err_first),
+      teachers: n(r.teachers),
+      cameBack: n(r.came_back),
+      secondDay: n(r.second_day),
+    })),
+  };
+});
+
+export interface RegionRow {
+  region: string;
+  teachers: number;
+  finished: number;
+}
+
+export interface Geography {
+  regions: RegionRow[];
+  regionCount: number;
+  weekdays: { day: number; teachers: number }[];
+  /** Top regions behind each peak registration day. */
+  peakRegions: { day: string; region: string; teachers: number }[];
+}
+
+/** Where and when teachers register. Registered in range. */
+export const getGeography = cache(async (asOfIso: string, fromIso: string = ""): Promise<Geography> => {
+  const asOf = new Date(asOfIso);
+  const [regions, weekdays, peakRegions] = await Promise.all([
+    query<Record<string, unknown>>(asOf, fromDate(fromIso), sql`
+select ${REGION} as region, count(*) as teachers, count(*) filter (where c.ob = 'completed') as finished
+from cohort c join users u on u.id = c.id
+group by 1 order by 2 desc, 1`),
+    query<Record<string, unknown>>(asOf, fromDate(fromIso), sql`
+select extract(isodow from created_at at time zone ${TZ})::int as day, count(*) as teachers
+from cohort group by 1 order by 1`),
+    query<Record<string, unknown>>(asOf, fromDate(fromIso), sql`,
+top as (
+  select (created_at at time zone ${TZ})::date as d from cohort
+  group by 1 order by count(*) desc, 1 desc limit ${PEAK_DAYS}
+)
+select top.d::text as day, ${REGION} as region, count(*) as teachers
+from cohort c join users u on u.id = c.id join top on top.d = (c.created_at at time zone ${TZ})::date
+group by 1, 2 order by 1, 3 desc`),
+  ]);
+  return {
+    regions: regions.map((r) => ({ region: String(r.region), teachers: n(r.teachers), finished: n(r.finished) })),
+    regionCount: regions.length,
+    weekdays: weekdays.map((r) => ({ day: n(r.day), teachers: n(r.teachers) })),
+    peakRegions: peakRegions.map((r) => ({ day: String(r.day), region: String(r.region), teachers: n(r.teachers) })),
+  };
+});
+
+export interface Usage {
+  weekdays: { day: number; messages: number; teachers: number }[];
+  hours: { hour: number; messages: number }[];
+}
+
+/** When teachers message Twiga, in Tanzania time. Messages in range. */
+export const getUsageTiming = cache(async (asOfIso: string, fromIso: string = ""): Promise<Usage> => {
+  const asOf = new Date(asOfIso);
+  const [weekdays, hours] = await Promise.all([
+    query<Record<string, unknown>>(asOf, fromDate(fromIso), sql`
+select extract(isodow from created_at at time zone ${TZ})::int as day, count(*) as messages,
+  count(distinct user_id) as teachers
+from teacher_msgs_r group by 1 order by 1`),
+    query<Record<string, unknown>>(asOf, fromDate(fromIso), sql`
+select extract(hour from created_at at time zone ${TZ})::int as hour, count(*) as messages
+from teacher_msgs_r group by 1 order by 1`),
+  ]);
+  return {
+    weekdays: weekdays.map((r) => ({ day: n(r.day), messages: n(r.messages), teachers: n(r.teachers) })),
+    hours: hours.map((r) => ({ hour: n(r.hour), messages: n(r.messages) })),
+  };
+});
+
+export interface ReplySpeed {
+  messages: number;
+  noReply: number;
+  /** Unanswered, and it was the teacher's last message (they left without an answer). */
+  noReplyLast: number;
+  medianS: number | null;
+  p90S: number | null;
+  over60: number;
+  months: { month: string; messages: number; noReply: number; medianS: number | null; p90S: number | null }[];
+}
+
+/**
+ * How fast Twiga answers. A teacher message is answered by the first Twiga
+ * reply after it and before the teacher's next message (or within a day).
+ * Messages in range.
+ */
+export const getReplySpeed = cache(async (asOfIso: string, fromIso: string = ""): Promise<ReplySpeed> => {
+  const asOf = new Date(asOfIso);
+  const rows = await query<Record<string, unknown>>(asOf, fromDate(fromIso), sql`,
+tm as (
+  select m.user_id, m.created_at,
+    lead(m.created_at) over (partition by m.user_id order by m.created_at) as next_user
+  from teacher_msgs m
+),
+r as (
+  select tm.*, (
+    select min(a.created_at) from messages a
+    where a.user_id = tm.user_id and a.role::text = 'assistant' and a.created_at > tm.created_at
+      and a.created_at < coalesce(tm.next_user, tm.created_at + ${sql.raw(`interval '${REPLY_WINDOW_HOURS} hours'`)})
+  ) as reply_at
+  from tm where tm.created_at >= least(coalesce((select start_ts from p), '-infinity'), (select chart_from from p))
+),
+x as (
+  select *, extract(epoch from reply_at - created_at) as secs,
+    created_at >= coalesce((select start_ts from p), '-infinity') as in_range
+  from r
+)
+select 'all' as month, count(*) filter (where in_range) as messages,
+  count(*) filter (where in_range and reply_at is null) as no_reply,
+  count(*) filter (where in_range and reply_at is null and next_user is null) as no_reply_last,
+  percentile_cont(0.5) within group (order by secs) filter (where in_range and reply_at is not null) as median_s,
+  percentile_cont(0.9) within group (order by secs) filter (where in_range and reply_at is not null) as p90_s,
+  count(*) filter (where in_range and secs > 60) as over_60
+from x
+union all
+select to_char(date_trunc('month', created_at at time zone ${TZ}), 'YYYY-MM'), count(*),
+  count(*) filter (where reply_at is null), null,
+  percentile_cont(0.5) within group (order by secs) filter (where reply_at is not null),
+  percentile_cont(0.9) within group (order by secs) filter (where reply_at is not null), null
+from x where created_at >= (select chart_from from p)
+group by 1`);
+  const all = rows.find((r) => r.month === "all");
+  const num = (v: unknown) => (v === null || v === undefined ? null : n(v));
+  return {
+    messages: n(all?.messages),
+    noReply: n(all?.no_reply),
+    noReplyLast: n(all?.no_reply_last),
+    medianS: num(all?.median_s),
+    p90S: num(all?.p90_s),
+    over60: n(all?.over_60),
+    months: rows
+      .filter((r) => r.month !== "all")
+      .map((r) => ({
+        month: String(r.month),
+        messages: n(r.messages),
+        noReply: n(r.no_reply),
+        medianS: num(r.median_s),
+        p90S: num(r.p90_s),
+      }))
+      .sort((a, b) => a.month.localeCompare(b.month)),
+  };
+});
+
+export interface ErrorRow {
+  tool: string;
+  message: string;
+  count: number;
+  firstSeen: string;
+  lastSeen: string;
+}
+
+/** Most common tool error messages (system text, never the teacher's words). Runs in range. */
+export const getErrorMessages = cache(async (asOfIso: string, fromIso: string = ""): Promise<ErrorRow[]> => {
+  const rows = await query<Record<string, unknown>>(new Date(asOfIso), fromDate(fromIso), sql`
+select tool_name as tool, left(regexp_replace(content, '\\s+', ' ', 'g'), 140) as message, count(*) as n,
+  (min(created_at) at time zone ${TZ})::date::text as first_seen,
+  (max(created_at) at time zone ${TZ})::date::text as last_seen
+from tool_results_r where is_error group by 1, 2 order by 3 desc limit ${TOP_ERRORS}`);
+  return rows.map((r) => ({
+    tool: String(r.tool),
+    message: String(r.message),
+    count: n(r.n),
+    firstSeen: String(r.first_seen),
+    lastSeen: String(r.last_seen),
+  }));
+});
+
+export interface ClassExtras {
+  subject: string;
+  grade: string;
+  textbooks: number;
+  exams: number;
+  runs: number;
+  failedRuns: number;
+}
+
+/**
+ * Per grade: textbooks linked, exams generated, and tool runs with how many
+ * failed (each call matched to the next tool result). Exams and runs in range.
+ */
+export const getClassExtras = cache(async (asOfIso: string, fromIso: string = ""): Promise<ClassExtras[]> => {
+  const rows = await query<Record<string, unknown>>(new Date(asOfIso), fromDate(fromIso), sql`,
+books as (select class_id, count(*) as n from classes_resources group by 1),
+exams as (
+  select e.class_id, count(*) as n from generated_exams e join teachers t on t.id = e.user_id
+  where e.generated_at_utc <= (select as_of from p)
+    and e.generated_at_utc >= coalesce((select start_ts from p), '-infinity')
+  group by 1
+),
+runs as (
+  select c.class_id, count(*) as calls, count(*) filter (where r.is_error) as failed
+  from tool_calls_r c
+  left join lateral (
+    select is_error from tool_results r where r.user_id = c.user_id and r.created_at >= c.created_at
+    order by r.created_at limit 1
+  ) r on true
+  where c.class_id is not null group by 1
+)
+select s.name::text as subject, c.grade_level::text as grade,
+  coalesce(b.n, 0) as textbooks, coalesce(e.n, 0) as exams,
+  coalesce(r.calls, 0) as runs, coalesce(r.failed, 0) as failed_runs
+from classes c join subjects s on s.id = c.subject_id
+left join books b on b.class_id = c.id left join exams e on e.class_id = c.id left join runs r on r.class_id = c.id`);
+  return rows.map((r) => ({
+    subject: String(r.subject),
+    grade: String(r.grade),
+    textbooks: n(r.textbooks),
+    exams: n(r.exams),
+    runs: n(r.runs),
+    failedRuns: n(r.failed_runs),
+  }));
+});
+
+export interface ScienceDemand {
+  physics: number;
+  chemistry: number;
+  either: number;
+  askedMissing: number;
+  eitherOnboarded: number;
+  messaged: number;
+  months: { month: string; physics: number; chemistry: number }[];
+}
+
+/**
+ * Teachers who mentioned physics or chemistry (English or Swahili) in their
+ * messages, subjects Twiga doesn't offer yet. Counts only. Messages in range.
+ */
+export const getScienceDemand = cache(async (asOfIso: string, fromIso: string = ""): Promise<ScienceDemand> => {
+  const asOf = new Date(asOfIso);
+  const [[d], months] = await Promise.all([
+    query<Record<string, unknown>>(asOf, fromDate(fromIso), sql`,
+d as (
+  select user_id,
+    bool_or(content ~* ${PHYSICS_PATTERN}) as phys,
+    bool_or(content ~* ${CHEMISTRY_PATTERN}) as chem,
+    bool_or(content ~* ${ASKED_MISSING_PATTERN}) as asked_missing
+  from teacher_msgs_r group by 1
+)
+select count(*) filter (where phys) as phys, count(*) filter (where chem) as chem,
+  count(*) filter (where phys or chem) as either, count(*) filter (where asked_missing) as asked_missing,
+  count(*) filter (where (phys or chem) and f.ob = 'completed') as either_onboarded,
+  count(*) as messaged
+from d join facts f on f.id = d.user_id`),
+    query<Record<string, unknown>>(asOf, fromDate(fromIso), sql`
+select to_char(date_trunc('month', created_at at time zone ${TZ}), 'YYYY-MM') as month,
+  count(distinct user_id) filter (where content ~* ${PHYSICS_PATTERN}) as physics,
+  count(distinct user_id) filter (where content ~* ${CHEMISTRY_PATTERN}) as chemistry
+from teacher_msgs where created_at >= (select chart_from from p)
+group by 1 order by 1`),
+  ]);
+  return {
+    physics: n(d?.phys),
+    chemistry: n(d?.chem),
+    either: n(d?.either),
+    askedMissing: n(d?.asked_missing),
+    eitherOnboarded: n(d?.either_onboarded),
+    messaged: n(d?.messaged),
+    months: months.map((r) => ({ month: String(r.month), physics: n(r.physics), chemistry: n(r.chemistry) })),
   };
 });

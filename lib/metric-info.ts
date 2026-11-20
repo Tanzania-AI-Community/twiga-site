@@ -157,7 +157,7 @@ export const metricInfo = {
   tel_subjects: {
     title: "Subjects",
     what: "For each subject: the grades set up, how many onboarded teachers chose it, how many are still active, how many come back, how many got textbook help in it, and the longest working session.",
-    how: "Teachers count once per subject they chose. Textbook help and sessions are matched to a subject through the grade Twiga searched or generated content for. A session is a run of messages with no gap longer than 30 minutes.",
+    how: "Teachers count once per subject they chose. Textbook help, sessions, exams and tool runs are matched to a subject through the grade Twiga searched or generated content for. Textbooks are the books linked to each grade. A session is a run of messages with no gap longer than 30 minutes. Failed runs are tool runs whose result was an error.",
   },
   tel_registrations: {
     title: "New teachers per month",
@@ -197,7 +197,7 @@ export const metricInfo = {
   tel_session_activity: {
     title: "What happens in a session",
     what: "Whether Twiga used its textbook tools in a session (search, exercises, lesson plans, exams, equation solver) or the teacher only chatted.",
-    how: "We match the tools Twiga ran to the session they happened in, allowing 10 minutes after the teacher's last message for Twiga to finish. We never read what the teacher wrote.",
+    how: "We match the tools Twiga ran to the session they happened in, allowing 10 minutes after the teacher's last message for Twiga to finish. This card doesn't look at what the teacher wrote.",
   },
   tel_session_failures: {
     title: "Sessions that hit a failure",
@@ -213,6 +213,46 @@ export const metricInfo = {
     title: "Session log",
     what: "Individual sessions: who, when, which subject and grade, which tools Twiga used, how long it lasted and whether anything failed.",
     how: "Built from the same sessions as the cards above. Subject and grade come from the grade Twiga searched or generated content for. Message text is never shown.",
+  },
+  tel_stuck: {
+    title: "Where unfinished teachers stopped",
+    what: "Teachers who registered but didn't finish onboarding, by the step they stopped at and their account status.",
+    how: "'Never gave details' means they never sent their name and school; 'Stopped at subjects' means they gave details but never picked their subjects and grades. Open the list to follow up with them.",
+  },
+  tel_churn: {
+    title: "Do early failures drive teachers away?",
+    what: "Onboarded teachers split by whether something failed in their very first session, and how many of each group came back.",
+    how: "A first-session failure is a tool error or a 'something went wrong' or 'couldn't generate' reply during that session. Came back means a second session; another day means messages on 2 or more days. Only teachers who started at least 14 days before the end of the range count, so everyone had time to return.",
+  },
+  tel_regions: {
+    title: "Teachers by region",
+    what: "Where registered teachers say they are, and how many of them finished onboarding.",
+    how: "Region is what each teacher typed during onboarding, tidied for spelling of capitals and spaces. Teachers who never gave details have no region.",
+  },
+  tel_reg_weekday: {
+    title: "Registrations by weekday",
+    what: "Which days of the week teachers sign up, which shows when trainings and outreach happen.",
+    how: "We count teacher accounts by the weekday they were created (Tanzania time).",
+  },
+  tel_usage_timing: {
+    title: "When teachers use Twiga",
+    what: "Teacher messages by day of the week and by hour of the day, to plan reminders, trainings and support hours.",
+    how: "We count every message teachers sent, by its weekday and hour in Tanzania time.",
+  },
+  tel_reply_speed: {
+    title: "Reply speed",
+    what: "How long Twiga takes to answer, and how many teacher messages got no answer at all.",
+    how: "A message counts as answered by Twiga's first reply after it, before the teacher wrote again (or within a day). The typical time is the middle answer; 1 in 10 answers take longer than the slow figure. 'Left without an answer' is an unanswered message that was the teacher's last.",
+  },
+  tel_errors: {
+    title: "Most common errors",
+    what: "The error messages Twiga's tools returned most often, so engineers know what to fix first.",
+    how: "We group failed tool results by their error text. This is Twiga's own system message, never what the teacher wrote; long technical details are cut short.",
+  },
+  tel_science_demand: {
+    title: "Asked for, not offered",
+    what: "Teachers who mentioned physics or chemistry, subjects Twiga doesn't offer yet, and how many said outright they couldn't find them.",
+    how: "We look for the words physics, fizikia, chemistry and kemia in teachers' messages, and for phrases like 'physics is not there'. Only the number of teachers leaves the database; no message text is shown or stored.",
   },
   tel_replies: {
     title: "Problem replies",
