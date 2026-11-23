@@ -1,5 +1,6 @@
 import { getMessageDayCounts } from "@/lib/data";
 import { bucketRegistrations } from "@/lib/metrics";
+import { getReportingTimeZone } from "@/lib/time-zone-server";
 import { RegistrationsChartClient } from "@/components/admin/metrics/RegistrationsChartClient";
 
 /**
@@ -7,14 +8,14 @@ import { RegistrationsChartClient } from "@/components/admin/metrics/Registratio
  * and month are summed from those days. Independent of the cards beside it.
  */
 export async function MessagesChart() {
-  const days = await getMessageDayCounts();
+  const [days, timeZone] = await Promise.all([getMessageDayCounts(), getReportingTimeZone()]);
 
   return (
     <RegistrationsChartClient
       buckets={{
-        day: bucketRegistrations(days, "day"),
-        week: bucketRegistrations(days, "week"),
-        month: bucketRegistrations(days, "month"),
+        day: bucketRegistrations(days, "day", timeZone),
+        week: bucketRegistrations(days, "week", timeZone),
+        month: bucketRegistrations(days, "month", timeZone),
       }}
       title="Messages over time"
       description="Teacher messages per period. Ignores your filters."

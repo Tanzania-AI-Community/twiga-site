@@ -2,6 +2,7 @@ import { Repeat } from "lucide-react";
 
 import { getRetention, monthLabel, rangeLabel } from "@/lib/telemetry";
 import { EmptyState, Ratio, TelemetryCard, td, th } from "@/components/admin/telemetry/shared";
+import { getReportingTimeZone } from "@/lib/time-zone-server";
 
 function TooRecent() {
   return <span className="text-[11px] text-muted-foreground">too recent</span>;
@@ -9,6 +10,7 @@ function TooRecent() {
 
 /** Monthly start groups and how many came back in week 2 and month 2. */
 export async function RetentionCard({ asOf, from = "" }: { asOf: string; from?: string }) {
+  const tz = await getReportingTimeZone();
   const { cohorts, week2, month2 } = await getRetention(asOf, from);
   const rows = [...cohorts].reverse();
 
@@ -16,7 +18,7 @@ export async function RetentionCard({ asOf, from = "" }: { asOf: string; from?: 
     <TelemetryCard
       icon={<Repeat className="h-4 w-4" />}
       title="Retention by start month"
-      description={`Teachers registered ${rangeLabel(from, asOf)}, by the month of their first message`}
+      description={`Teachers registered ${rangeLabel(from, asOf, tz)}, by the month of their first message`}
       infoKey="tel_retention"
     >
       {rows.length === 0 ? (

@@ -1,7 +1,9 @@
 import { Suspense } from "react";
 
 import { checkAdminAuth } from "@/lib/auth";
-import { capitalize, chartRangeLabel, isValidDay, parseAsOf, rangeLabel, TIME_ZONE, TIME_ZONE_OFFSET } from "@/lib/telemetry";
+import { capitalize, chartRangeLabel, isValidDay, parseAsOf, rangeLabel } from "@/lib/telemetry";
+import { zonedDayEnd, zonedDayStart, zoneName } from "@/lib/time-zone";
+import { getReportingTimeZone } from "@/lib/time-zone-server";
 import { env } from "@/env.mjs";
 import { DateRangeFilter } from "@/components/admin/telemetry/DateRangeFilter";
 import {
@@ -38,14 +40,17 @@ import {
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-const eat = new Intl.DateTimeFormat("en-GB", {
-  timeZone: TIME_ZONE,
-  day: "numeric",
-  month: "short",
-  year: "numeric",
-  hour: "2-digit",
-  minute: "2-digit",
-});
+/** "17 Nov 2026, 14:05" in the reporting time zone. */
+function moment(iso: string, timeZone: string): string {
+  return new Intl.DateTimeFormat("en-GB", {
+    timeZone,
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(iso));
+}
 
 function SectionTitle({
   children,
@@ -76,7 +81,7 @@ const one = (v: string | string[] | undefined) =>
  * teachers. Same definitions as the teacher analytics report. Each section
  * streams in its own Suspense boundary; fetchers are cached per request.
  *
- * ?from= and ?to= (Tanzania days) set the range for the whole page. Teacher
+ * ?from= and ?to= (days in the reporting time zone) set the range for the whole page. Teacher
  * figures cover teachers who registered in the range; activity figures cover
  * what happened in it. ?asOf=<time> pins the end exactly (for example to the
  * last message of a snapshot) so the page can be checked against the report.
@@ -88,16 +93,17 @@ export default async function TelemetryPage({
 }) {
   await checkAdminAuth();
   const params = await searchParams;
-  // Range: ?from=YYYY-MM-DD&to=YYYY-MM-DD, whole days in Tanzania time.
+  const tz = await getReportingTimeZone();
+  // Range: ?from=YYYY-MM-DD&to=YYYY-MM-DD, whole days in the reporting time zone.
   // An empty or future "to" means now. ?asOf= (exact time) overrides the end.
   const fromDay = one(params.from);
   const toDay = one(params.to);
   const pinned = parseAsOf(params.asOf);
   const now = new Date();
-  const toEnd = toDay ? new Date(`${toDay}T23:59:59.999${TIME_ZONE_OFFSET}`) : null;
+  const toEnd = toDay ? zonedDayEnd(toDay, tz) : null;
   const asOf = (pinned ?? (toEnd && toEnd < now ? toEnd : now)).toISOString();
-  const from = fromDay ? new Date(`${fromDay}T00:00:00${TIME_ZONE_OFFSET}`).toISOString() : "";
-  const range = rangeLabel(from, asOf);
+  const from = fromDay ? zonedDayStart(fromDay, tz).toISOString() : "";
+  const range = rangeLabel(from, asOf, tz);
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-green-50 to-white">
@@ -114,7 +120,7 @@ export default async function TelemetryPage({
           </div>
           <span className="text-[11px] text-muted-foreground">
             {pinned ? "Pinned to " : "Data up to "}
-            {eat.format(new Date(asOf))} EAT
+            {moment(asOf, tz)} {zoneName(tz, "short")}
           </span>
         </div>
 
@@ -147,7 +153,7 @@ export default async function TelemetryPage({
           </Suspense>
         </div>
 
-        <SectionTitle hint="New and active teachers over time" range={chartRangeLabel(from, asOf)}>Growth</SectionTitle>
+        <SectionTitle hint="New and active teachers over time" range={chartRangeLabel(from, asOf, tz)}>Growth</SectionTitle>
         <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
           <Suspense
             fallback={

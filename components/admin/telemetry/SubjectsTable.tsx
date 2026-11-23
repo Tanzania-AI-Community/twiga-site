@@ -3,6 +3,7 @@ import { BookOpen } from "lucide-react";
 import { getClassExtras, getGradeBreakdown, getSubjects, gradeRange, rangeLabel, subjectLabel } from "@/lib/telemetry";
 import { SubjectsTableClient } from "@/components/admin/telemetry/SubjectsTableClient";
 import { EmptyState, TelemetryCard } from "@/components/admin/telemetry/shared";
+import { getReportingTimeZone } from "@/lib/time-zone-server";
 
 /**
  * One row per subject set up in Twiga: grades, onboarded teachers, activity,
@@ -10,6 +11,7 @@ import { EmptyState, TelemetryCard } from "@/components/admin/telemetry/shared";
  * without teachers, and subjects Twiga knows that aren't set up at all.
  */
 export async function SubjectsTable({ asOf, from = "" }: { asOf: string; from?: string }) {
+  const tz = await getReportingTimeZone();
   const [{ rows, notSetUp }, grades, extras] = await Promise.all([
     getSubjects(asOf, from),
     getGradeBreakdown(asOf, from),
@@ -24,7 +26,7 @@ export async function SubjectsTable({ asOf, from = "" }: { asOf: string; from?: 
     <TelemetryCard
       icon={<BookOpen className="h-4 w-4" />}
       title="Subjects"
-      description={`Teachers registered ${rangeLabel(from, asOf)}; textbook help and sessions in the same range`}
+      description={`Teachers registered ${rangeLabel(from, asOf, tz)}; textbook help and sessions in the same range`}
       infoKey="tel_subjects"
     >
       {withTeachers.length === 0 ? (

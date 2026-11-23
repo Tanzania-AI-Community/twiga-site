@@ -3,6 +3,7 @@ import { Filter } from "lucide-react";
 import { getOverview, rangeLabel } from "@/lib/telemetry";
 import { EmptyState, TelemetryCard } from "@/components/admin/telemetry/shared";
 import { UnfinishedTeachersLink } from "@/components/admin/telemetry/UnfinishedTeachersPanel";
+import { getReportingTimeZone } from "@/lib/time-zone-server";
 
 const lower = (s: string) => s.charAt(0).toLowerCase() + s.slice(1);
 
@@ -25,6 +26,7 @@ function BiggestDrop({ steps }: { steps: { label: string; n: number }[] }) {
 
 /** Teacher journey from first contact to regular use, each step as a share of the first. */
 export async function FunnelCard({ asOf, from = "" }: { asOf: string; from?: string }) {
+  const tz = await getReportingTimeZone();
   const o = await getOverview(asOf, from);
   const steps = [
     { label: "Contacted Twiga", n: o.teachers },
@@ -40,7 +42,7 @@ export async function FunnelCard({ asOf, from = "" }: { asOf: string; from?: str
     <TelemetryCard
       icon={<Filter className="h-4 w-4" />}
       title="Teacher journey"
-      description={`Teachers registered ${rangeLabel(from, asOf)}`}
+      description={`Teachers registered ${rangeLabel(from, asOf, tz)}`}
       infoKey="tel_funnel"
     >
       {o.teachers === 0 ? (

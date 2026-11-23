@@ -18,6 +18,8 @@ import {
 import { MonthlyBars, MonthlyLines } from "@/components/admin/telemetry/TelemetryCharts";
 import { UnfinishedTeachersLink } from "@/components/admin/telemetry/UnfinishedTeachersPanel";
 import { EmptyState, Ratio, TelemetryCard, td, th } from "@/components/admin/telemetry/shared";
+import { getReportingTimeZone } from "@/lib/time-zone-server";
+import { zoneName } from "@/lib/time-zone";
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const STAGE: Record<string, string> = { new: "Never gave details", personal_info_submitted: "Stopped at subjects" };
@@ -50,13 +52,14 @@ function errorLabel(raw: string): string {
 // ---------------------------------------------------------------------------
 
 export async function StuckCard({ asOf, from = "" }: { asOf: string; from?: string }) {
+  const tz = await getReportingTimeZone();
   const { stuck } = await getOnboardingDetail(asOf, from);
   const total = stuck.reduce((s, r) => s + r.teachers, 0);
   return (
     <TelemetryCard
       icon={<PauseCircle className="h-4 w-4" />}
       title="Where unfinished teachers stopped"
-      description={`Teachers registered ${rangeLabel(from, asOf)} who didn't finish onboarding`}
+      description={`Teachers registered ${rangeLabel(from, asOf, tz)} who didn't finish onboarding`}
       infoKey="tel_stuck"
     >
       {total === 0 ? (
@@ -95,6 +98,7 @@ export async function StuckCard({ asOf, from = "" }: { asOf: string; from?: stri
 }
 
 export async function ChurnCard({ asOf, from = "" }: { asOf: string; from?: string }) {
+  const tz = await getReportingTimeZone();
   const { churn } = await getOnboardingDetail(asOf, from);
   const hit = churn.find((r) => r.hadFailure);
   const clean = churn.find((r) => !r.hadFailure);
@@ -106,7 +110,7 @@ export async function ChurnCard({ asOf, from = "" }: { asOf: string; from?: stri
     <TelemetryCard
       icon={<Repeat2 className="h-4 w-4" />}
       title="Do early failures drive teachers away?"
-      description={`Onboarded teachers registered ${rangeLabel(from, asOf)}, started at least 14 days before its end`}
+      description={`Onboarded teachers registered ${rangeLabel(from, asOf, tz)}, started at least 14 days before its end`}
       infoKey="tel_churn"
     >
       {!hit && !clean ? (
@@ -146,6 +150,7 @@ export async function ChurnCard({ asOf, from = "" }: { asOf: string; from?: stri
 // ---------------------------------------------------------------------------
 
 export async function RegionsCard({ asOf, from = "" }: { asOf: string; from?: string }) {
+  const tz = await getReportingTimeZone();
   const { regions, regionCount } = await getGeography(asOf, from);
   const top = regions.slice(0, 12);
   const max = Math.max(...top.map((r) => r.teachers), 1);
@@ -153,7 +158,7 @@ export async function RegionsCard({ asOf, from = "" }: { asOf: string; from?: st
     <TelemetryCard
       icon={<MapPin className="h-4 w-4" />}
       title="Teachers by region"
-      description={`Registered ${rangeLabel(from, asOf)} · top ${top.length} of ${regionCount} regions as typed`}
+      description={`Registered ${rangeLabel(from, asOf, tz)} · top ${top.length} of ${regionCount} regions as typed`}
       infoKey="tel_regions"
     >
       {top.length === 0 ? (
@@ -192,13 +197,14 @@ export async function RegionsCard({ asOf, from = "" }: { asOf: string; from?: st
 }
 
 export async function RegWeekdayCard({ asOf, from = "" }: { asOf: string; from?: string }) {
+  const tz = await getReportingTimeZone();
   const { weekdays } = await getGeography(asOf, from);
   const data = WEEKDAYS.map((label, i) => ({ label, teachers: weekdays.find((w) => w.day === i + 1)?.teachers ?? 0 }));
   return (
     <TelemetryCard
       icon={<CalendarDays className="h-4 w-4" />}
       title="Registrations by weekday"
-      description={`Registered ${rangeLabel(from, asOf)} · Tanzania time`}
+      description={`Registered ${rangeLabel(from, asOf, tz)} · ${zoneName(tz, "long")}`}
       infoKey="tel_reg_weekday"
     >
       {weekdays.length === 0 ? (
@@ -215,6 +221,7 @@ export async function RegWeekdayCard({ asOf, from = "" }: { asOf: string; from?:
 // ---------------------------------------------------------------------------
 
 export async function UsageTimingCard({ asOf, from = "" }: { asOf: string; from?: string }) {
+  const tz = await getReportingTimeZone();
   const { weekdays, hours } = await getUsageTiming(asOf, from);
   const dayData = WEEKDAYS.map((label, i) => {
     const w = weekdays.find((x) => x.day === i + 1);
@@ -229,7 +236,7 @@ export async function UsageTimingCard({ asOf, from = "" }: { asOf: string; from?
     <TelemetryCard
       icon={<Sun className="h-4 w-4" />}
       title="When teachers use Twiga"
-      description={`Teacher messages ${rangeLabel(from, asOf)} · Tanzania time`}
+      description={`Teacher messages ${rangeLabel(from, asOf, tz)} · ${zoneName(tz, "long")}`}
       infoKey="tel_usage_timing"
     >
       {weekdays.length === 0 ? (
@@ -257,6 +264,7 @@ export async function UsageTimingCard({ asOf, from = "" }: { asOf: string; from?
 // ---------------------------------------------------------------------------
 
 export async function ReplySpeedCard({ asOf, from = "" }: { asOf: string; from?: string }) {
+  const tz = await getReportingTimeZone();
   const r = await getReplySpeed(asOf, from);
   const data = r.months.map((m) => ({
     label: monthLabel(m.month, true),
@@ -267,7 +275,7 @@ export async function ReplySpeedCard({ asOf, from = "" }: { asOf: string; from?:
     <TelemetryCard
       icon={<Clock3 className="h-4 w-4" />}
       title="Reply speed"
-      description={`Teacher messages ${rangeLabel(from, asOf)}`}
+      description={`Teacher messages ${rangeLabel(from, asOf, tz)}`}
       infoKey="tel_reply_speed"
     >
       {r.messages === 0 ? (
@@ -285,7 +293,7 @@ export async function ReplySpeedCard({ asOf, from = "" }: { asOf: string; from?:
             />
           </div>
           <div className="mb-1 text-[11px] font-bold uppercase tracking-wider text-slate-600">
-            Per month · {chartRangeLabel(from, asOf)}
+            Per month · {chartRangeLabel(from, asOf, tz)}
           </div>
           <MonthlyLines
             data={data}
@@ -302,12 +310,13 @@ export async function ReplySpeedCard({ asOf, from = "" }: { asOf: string; from?:
 }
 
 export async function ErrorsCard({ asOf, from = "" }: { asOf: string; from?: string }) {
+  const tz = await getReportingTimeZone();
   const errors = await getErrorMessages(asOf, from);
   return (
     <TelemetryCard
       icon={<Bug className="h-4 w-4" />}
       title="Most common errors"
-      description={`Failed tool runs ${rangeLabel(from, asOf)} · Twiga's error text, not the teacher's words`}
+      description={`Failed tool runs ${rangeLabel(from, asOf, tz)} · Twiga's error text, not the teacher's words`}
       infoKey="tel_errors"
     >
       {errors.length === 0 ? (
@@ -347,13 +356,14 @@ export async function ErrorsCard({ asOf, from = "" }: { asOf: string; from?: str
 // ---------------------------------------------------------------------------
 
 export async function ScienceDemandCard({ asOf, from = "" }: { asOf: string; from?: string }) {
+  const tz = await getReportingTimeZone();
   const d = await getScienceDemand(asOf, from);
   const data = d.months.map((m) => ({ label: monthLabel(m.month, true), physics: m.physics, chemistry: m.chemistry }));
   return (
     <TelemetryCard
       icon={<Atom className="h-4 w-4" />}
       title="Asked for, not offered: physics and chemistry"
-      description={`${capitalize(rangeLabel(from, asOf))} · teachers who mentioned them in their messages (counts only)`}
+      description={`${capitalize(rangeLabel(from, asOf, tz))} · teachers who mentioned them in their messages (counts only)`}
       infoKey="tel_science_demand"
     >
       <div className="grid gap-4 md:grid-cols-[1fr_1.4fr]">
@@ -369,7 +379,7 @@ export async function ScienceDemandCard({ asOf, from = "" }: { asOf: string; fro
         </div>
         <div>
           <div className="mb-1 text-[11px] font-bold uppercase tracking-wider text-slate-600">
-            Teachers per month · {chartRangeLabel(from, asOf)}
+            Teachers per month · {chartRangeLabel(from, asOf, tz)}
           </div>
           {data.length === 0 ? (
             <EmptyState title="No mentions" hint="Nobody mentioned physics or chemistry in this range." />

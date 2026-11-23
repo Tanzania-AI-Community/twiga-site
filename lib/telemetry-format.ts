@@ -3,10 +3,7 @@
  * so client components can use them. lib/telemetry re-exports everything here.
  */
 
-/** Telemetry reports in Tanzania time (UTC+3, no daylight saving). */
-export const TIME_ZONE = "Africa/Dar_es_Salaam";
-/** ISO offset for TIME_ZONE, used to turn a Tanzania day into an instant. */
-export const TIME_ZONE_OFFSET = "+03:00";
+import { tzDay } from "@/lib/time-zone";
 
 /** Chart colours, matching the dashboard's green. */
 export const CHART_COLORS = {
@@ -16,11 +13,6 @@ export const CHART_COLORS = {
   warning: "#d97706",
   secondary: "#0ea5e9",
 } as const;
-
-/** YYYY-MM-DD of an instant, in Tanzania time. */
-export function tzDay(d: Date): string {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: TIME_ZONE }).format(d);
-}
 
 /** Minutes as "<1 min", "15 min" or "1 h 54 min"; `precise` keeps one decimal under an hour. */
 export function formatMinutes(min: number | null, precise = false): string {
@@ -99,14 +91,16 @@ export function subjectLabel(subject: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
-/** Same "17 Nov 2026" style as dayLabel, for a moment in time (Tanzania day). */
-const DAY_FMT = { format: (d: Date) => dayLabel(tzDay(d)) };
+/** Same "17 Nov 2026" style as dayLabel, for a moment in time (its day in `timeZone`). */
+function dayOf(iso: string, timeZone: string): string {
+  return dayLabel(tzDay(new Date(iso), timeZone));
+}
 
 /** "1 Sep 2026 – 17 Nov 2026", or "any time up to 17 Nov 2026" when there is no start. Reads inside a sentence. */
-export function rangeLabel(fromIso: string, asOfIso: string): string {
-  const end = DAY_FMT.format(new Date(asOfIso));
+export function rangeLabel(fromIso: string, asOfIso: string, timeZone: string): string {
+  const end = dayOf(asOfIso, timeZone);
   if (!fromIso) return `any time up to ${end}`;
-  return `${DAY_FMT.format(new Date(fromIso))} – ${end}`;
+  return `${dayOf(fromIso, timeZone)} – ${end}`;
 }
 
 /** Monthly charts cover this many months when the range is all time. */
@@ -115,15 +109,15 @@ export const CHART_MONTHS = 12;
 export const ACTIVE_LONG_DAYS = 30;
 
 /** Window used by the monthly charts: the range, or the last CHART_MONTHS months. */
-export function chartRangeLabel(fromIso: string, asOfIso: string): string {
+export function chartRangeLabel(fromIso: string, asOfIso: string, timeZone: string): string {
   return fromIso
-    ? rangeLabel(fromIso, asOfIso)
-    : `Last ${CHART_MONTHS} months, up to ${DAY_FMT.format(new Date(asOfIso))}`;
+    ? rangeLabel(fromIso, asOfIso, timeZone)
+    : `Last ${CHART_MONTHS} months, up to ${dayOf(asOfIso, timeZone)}`;
 }
 
 /** "last 30 days to 17 Nov 2026". */
-export function last30Label(asOfIso: string): string {
-  return `last ${ACTIVE_LONG_DAYS} days to ${DAY_FMT.format(new Date(asOfIso))}`;
+export function last30Label(asOfIso: string, timeZone: string): string {
+  return `last ${ACTIVE_LONG_DAYS} days to ${dayOf(asOfIso, timeZone)}`;
 }
 
 /** First letter upper-case, for a range label that starts a line. */

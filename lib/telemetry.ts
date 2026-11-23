@@ -8,8 +8,8 @@ import {
   CHART_MONTHS,
   GRADE_ORDER,
   sortGrades,
-  TIME_ZONE,
 } from "@/lib/telemetry-format";
+import { getReportingTimeZone } from "@/lib/time-zone-server";
 
 export * from "@/lib/telemetry-format";
 
@@ -32,7 +32,8 @@ export * from "@/lib/telemetry-format";
  * then, and the tools card's "last failure / last success" ignore the range.
  */
 
-const TZ = TIME_ZONE;
+// Days, weeks and months are counted in the admin's reporting time zone
+// (getReportingTimeZone); each query reads it as TZ.
 
 // ---------------------------------------------------------------------------
 // Definitions. Change them here and every figure follows.
@@ -125,7 +126,7 @@ const RETURNED_FLAGS = sql`exists(select 1 from teacher_msgs m where m.user_id =
     exists(select 1 from teacher_msgs m where m.user_id = f.id
       and m.created_at >= f.first_msg + ${days(MONTH2.start)} and m.created_at < f.first_msg + ${days(MONTH2.end)}) as m2`;
 
-function base(asOf: Date, from: Date | null): SQL {
+function base(asOf: Date, from: Date | null, TZ: string): SQL {
   return sql`
 p as (
   select ${asOf.toISOString()}::timestamptz as as_of,
@@ -236,7 +237,7 @@ session_detail_r as (select * from session_detail where started_at >= coalesce((
 }
 
 async function query<T>(asOf: Date, from: Date | null, body: SQL): Promise<T[]> {
-  const rows = await db.execute(sql`with ${base(asOf, from)} ${body}`);
+  const rows = await db.execute(sql`with ${base(asOf, from, await getReportingTimeZone())} ${body}`);
   return rows as unknown as T[];
 }
 
@@ -321,7 +322,7 @@ from cohort`
 // ---------------------------------------------------------------------------
 
 export interface Cohort {
-  month: string; // YYYY-MM, month of first message (EAT)
+  month: string; // YYYY-MM, month of first message (reporting zone)
   teachers: number;
   w2: number;
   m2: number;
@@ -337,6 +338,7 @@ export interface Retention {
 }
 
 export const getRetention = cache(async (asOfIso: string, fromIso: string = ""): Promise<Retention> => {
+  const TZ = await getReportingTimeZone();
   const rows = await query<Record<string, unknown>>(
     new Date(asOfIso),
     fromDate(fromIso),
@@ -557,13 +559,14 @@ export interface MonthPoint {
 }
 
 export interface PeakDay {
-  day: string; // YYYY-MM-DD (EAT)
+  day: string; // YYYY-MM-DD (reporting zone)
   registered: number;
   finished: number;
 }
 
 export const getGrowth = cache(
   async (asOfIso: string, fromIso: string = ""): Promise<{ months: MonthPoint[]; peaks: PeakDay[] }> => {
+    const TZ = await getReportingTimeZone();
     const asOf = new Date(asOfIso);
     const [months, peaks] = await Promise.all([
       query<Record<string, unknown>>(asOf, fromDate(fromIso),
@@ -645,6 +648,7 @@ export interface Reliability {
 }
 
 export const getReliability = cache(async (asOfIso: string, fromIso: string = ""): Promise<Reliability> => {
+  const TZ = await getReportingTimeZone();
   const asOf = new Date(asOfIso);
   const [tools, monthly, replies] = await Promise.all([
     query<Record<string, unknown>>(asOf, fromDate(fromIso),
@@ -720,10 +724,10 @@ export interface UnfinishedTeacher {
   accountState: string;
   /** "new" (never gave details) or "personal_info_submitted" (stopped at subjects). */
   stoppedAt: string;
-  month: string; // YYYY-MM of registration (EAT)
-  registered: string; // YYYY-MM-DD HH:MM (EAT)
+  month: string; // YYYY-MM of registration (reporting zone)
+  registered: string; // YYYY-MM-DD HH:MM (reporting zone)
   messages: number;
-  lastMessage: string | null; // YYYY-MM-DD HH:MM (EAT)
+  lastMessage: string | null; // YYYY-MM-DD HH:MM (reporting zone)
 }
 
 /**
@@ -732,6 +736,7 @@ export interface UnfinishedTeacher {
  * has checked the admin session.
  */
 export async function getUnfinishedTeachers(asOfIso: string, fromIso: string = ""): Promise<UnfinishedTeacher[]> {
+  const TZ = await getReportingTimeZone();
   const rows = await query<Record<string, unknown>>(
     new Date(asOfIso),
     fromDate(fromIso),
@@ -797,7 +802,7 @@ export interface SessionMonth {
 }
 
 export interface SessionEntry {
-  started: string; // YYYY-MM-DD HH:MM (EAT)
+  started: string; // YYYY-MM-DD HH:MM (reporting zone)
   teacher: string;
   minutes: number;
   messages: number;
@@ -819,6 +824,7 @@ export interface SessionStats {
 const LENGTH_BUCKETS = ["Single message", "Under 5 min", "5–15 min", "15–30 min", "30–60 min", "Over 1 hour"];
 
 export const getSessions = cache(async (asOfIso: string, fromIso: string = ""): Promise<SessionStats> => {
+  const TZ = await getReportingTimeZone();
   const asOf = new Date(asOfIso);
   const last30 = sql`started_at >= (select as_of from p) - ${days(ACTIVE_LONG_DAYS)}`;
   const inRange = sql`started_at >= coalesce((select start_ts from p), '-infinity')`;
@@ -1004,6 +1010,7 @@ export interface Geography {
 
 /** Where and when teachers register. Registered in range. */
 export const getGeography = cache(async (asOfIso: string, fromIso: string = ""): Promise<Geography> => {
+  const TZ = await getReportingTimeZone();
   const asOf = new Date(asOfIso);
   const [regions, weekdays, peakRegions] = await Promise.all([
     query<Record<string, unknown>>(asOf, fromDate(fromIso), sql`
@@ -1035,8 +1042,9 @@ export interface Usage {
   hours: { hour: number; messages: number }[];
 }
 
-/** When teachers message Twiga, in Tanzania time. Messages in range. */
+/** When teachers message Twiga, in the reporting time zone. Messages in range. */
 export const getUsageTiming = cache(async (asOfIso: string, fromIso: string = ""): Promise<Usage> => {
+  const TZ = await getReportingTimeZone();
   const asOf = new Date(asOfIso);
   const [weekdays, hours] = await Promise.all([
     query<Record<string, unknown>>(asOf, fromDate(fromIso), sql`
@@ -1072,6 +1080,7 @@ export interface ReplySpeed {
  * are still waiting and left out of the unanswered count. Messages in range.
  */
 export const getReplySpeed = cache(async (asOfIso: string, fromIso: string = ""): Promise<ReplySpeed> => {
+  const TZ = await getReportingTimeZone();
   const asOf = new Date(asOfIso);
   const rows = await query<Record<string, unknown>>(asOf, fromDate(fromIso), sql`,
 tm as (
@@ -1145,6 +1154,7 @@ export interface ErrorRow {
 
 /** Most common tool error messages (system text, never the teacher's words). Runs in range. */
 export const getErrorMessages = cache(async (asOfIso: string, fromIso: string = ""): Promise<ErrorRow[]> => {
+  const TZ = await getReportingTimeZone();
   const rows = await query<Record<string, unknown>>(new Date(asOfIso), fromDate(fromIso), sql`
 select tool_name as tool, left(regexp_replace(content, '\\s+', ' ', 'g'), 140) as message, count(*) as n,
   (min(created_at) at time zone ${TZ})::date::text as first_seen,
@@ -1217,6 +1227,7 @@ export interface ScienceDemand {
  * messages, subjects Twiga doesn't offer yet. Counts only. Messages in range.
  */
 export const getScienceDemand = cache(async (asOfIso: string, fromIso: string = ""): Promise<ScienceDemand> => {
+  const TZ = await getReportingTimeZone();
   const asOf = new Date(asOfIso);
   const [[d], months] = await Promise.all([
     query<Record<string, unknown>>(asOf, fromDate(fromIso), sql`,

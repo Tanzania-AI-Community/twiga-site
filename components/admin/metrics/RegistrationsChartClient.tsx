@@ -29,6 +29,7 @@ import {
   type RegistrationBucket,
 } from "@/lib/metrics";
 import { MetricInfo } from "@/components/admin/MetricInfo";
+import { useReportingTimeZone } from "@/components/admin/TimeZoneProvider";
 import type { MetricInfoKey } from "@/lib/metric-info";
 
 type Mode = "bars" | "line" | "cumulative";
@@ -96,12 +97,13 @@ export function RegistrationsChartClient({
   emptyHint?: string;
   infoKey?: MetricInfoKey;
 }) {
+  const timeZone = useReportingTimeZone();
   const [granularity, setGranularity] = React.useState<Granularity>("week");
   const [mode, setMode] = React.useState<Mode>("bars");
 
   const data = React.useMemo(
-    () => buckets?.[granularity] ?? bucketRegistrations(timestamps, granularity),
-    [buckets, timestamps, granularity]
+    () => buckets?.[granularity] ?? bucketRegistrations(timestamps, granularity, timeZone),
+    [buckets, timestamps, granularity, timeZone]
   );
   const hasData = buckets
     ? (["day", "week", "month"] as const).some((g) =>

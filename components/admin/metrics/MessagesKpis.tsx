@@ -11,7 +11,7 @@ export async function MessagesKpis() {
 
   return (
     <WindowKpiColumn
-      emptyLabel={stats.total === 0 ? "No messages yet" : null}
+      emptyLabel={stats.total === 0 ? "No messages in the last 60 days" : null}
       segments={[
         {
           label: "Today",

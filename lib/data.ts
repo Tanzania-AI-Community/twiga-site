@@ -1,5 +1,4 @@
 import { cache } from "react";
-import { startOfDay } from "date-fns";
 import { and, desc, eq, gte, ilike, lte, or, sql } from "drizzle-orm";
 
 import { db } from "@/db";
@@ -10,6 +9,8 @@ import {
   type RegistrationStats,
 } from "@/lib/metrics";
 import type { AdminDashboardSearchParams } from "@/lib/search-params";
+import { startOfZonedDay, zonedDayStart } from "@/lib/time-zone";
+import { getReportingTimeZone } from "@/lib/time-zone-server";
 
 /**
  * Fetches users matching the dashboard filters.
@@ -73,7 +74,7 @@ export const getRegistrationStats = cache(
       .select({ created_at: users.created_at })
       .from(users);
 
-    return registrationWindows(rows.map((row) => row.created_at));
+    return registrationWindows(rows.map((row) => row.created_at), await getReportingTimeZone());
   }
 );
 
@@ -87,13 +88,16 @@ function countOf(value: unknown): number {
 /**
  * Today / 7-day / 30-day message totals, counted in Postgres.
  * Scans the last 60 days only, so the cards can paint before the year chart.
- * Bounds match registrationWindows.
+ * "Today" starts at midnight in the admin's reporting time zone. Bounds match
+ * registrationWindows.
  */
 export const getMessageWindowStats = cache(
   async (now: Date = new Date()): Promise<RegistrationStats> => {
     const dayMs = 86_400_000;
-    const todayStart = startOfDay(now);
-    const yesterdayStart = new Date(todayStart.getTime() - dayMs);
+    const timeZone = await getReportingTimeZone();
+    const todayStart = startOfZonedDay(now, timeZone);
+    // Midnight before, not 24h before: a DST change day is 23 or 25 hours.
+    const yesterdayStart = startOfZonedDay(new Date(todayStart.getTime() - 1), timeZone);
     const weekStart = new Date(now.getTime() - 7 * dayMs);
     const prevWeekStart = new Date(now.getTime() - 14 * dayMs);
     const monthStart = new Date(now.getTime() - 30 * dayMs);
@@ -135,10 +139,10 @@ export const getMessageWindowStats = cache(
   }
 );
 
-/** One row per local day that had teacher messages, for the 12-month chart. */
+/** One row per day (reporting time zone) that had teacher messages, for the 12-month chart. */
 export const getMessageDayCounts = cache(
   async (): Promise<{ at: Date; count: number }[]> => {
-    const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const timeZone = await getReportingTimeZone();
     const rows = await db
       .select({
         day: sql<string>`to_char(${messages.created_at} at time zone ${timeZone}, 'YYYY-MM-DD')`,
@@ -149,15 +153,12 @@ export const getMessageDayCounts = cache(
         and(
           teacherMessage,
           eq(messages.is_present_in_conversation, true),
-          gte(messages.created_at, chartHistoryStart())
+          gte(messages.created_at, chartHistoryStart(timeZone))
         )
       )
       .groupBy(sql`1`)
       .orderBy(sql`1`);
 
-    return rows.map((row) => {
-      const [year, month, date] = String(row.day).split("-").map(Number);
-      return { at: new Date(year, month - 1, date), count: countOf(row.count) };
-    });
+    return rows.map((row) => ({ at: zonedDayStart(String(row.day), timeZone), count: countOf(row.count) }));
   }
 );

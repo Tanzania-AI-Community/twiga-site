@@ -3,9 +3,11 @@ import { Activity, CalendarDays, TrendingUp } from "lucide-react";
 import { CHART_COLORS, capitalize, chartRangeLabel, dayLabel, getGeography, getGrowth, monthLabel, rangeLabel } from "@/lib/telemetry";
 import { MonthlyBars, RegistrationsWithFollowUp } from "@/components/admin/telemetry/TelemetryCharts";
 import { EmptyState, TelemetryCard, td, th } from "@/components/admin/telemetry/shared";
+import { getReportingTimeZone } from "@/lib/time-zone-server";
 
 /** Last 12 months of new teachers (finished vs not) and of active teachers. */
 export async function GrowthCharts({ asOf, from = "" }: { asOf: string; from?: string }) {
+  const tz = await getReportingTimeZone();
   const { months } = await getGrowth(asOf, from);
   const recent = months;
   const regData = recent.map((m) => ({
@@ -21,7 +23,7 @@ export async function GrowthCharts({ asOf, from = "" }: { asOf: string; from?: s
       <TelemetryCard
         icon={<TrendingUp className="h-4 w-4" />}
         title="New teachers per month"
-        description={`${chartRangeLabel(from, asOf)} · by whether they finished onboarding`}
+        description={`${chartRangeLabel(from, asOf, tz)} · by whether they finished onboarding`}
         infoKey="tel_registrations"
       >
         {recent.length === 0 ? (
@@ -33,7 +35,7 @@ export async function GrowthCharts({ asOf, from = "" }: { asOf: string; from?: s
       <TelemetryCard
         icon={<Activity className="h-4 w-4" />}
         title="Active teachers per month"
-        description={`${chartRangeLabel(from, asOf)} · onboarded teachers who messaged Twiga that month`}
+        description={`${chartRangeLabel(from, asOf, tz)} · onboarded teachers who messaged Twiga that month`}
         infoKey="tel_active_monthly"
       >
         {recent.length === 0 ? (
@@ -48,6 +50,7 @@ export async function GrowthCharts({ asOf, from = "" }: { asOf: string; from?: s
 
 /** The busiest registration days and how many of those teachers finished onboarding. */
 export async function PeaksCard({ asOf, from = "" }: { asOf: string; from?: string }) {
+  const tz = await getReportingTimeZone();
   const [{ peaks }, { peakRegions }] = await Promise.all([getGrowth(asOf, from), getGeography(asOf, from)]);
   const regionsOf = (day: string) =>
     peakRegions
@@ -60,7 +63,7 @@ export async function PeaksCard({ asOf, from = "" }: { asOf: string; from?: stri
     <TelemetryCard
       icon={<CalendarDays className="h-4 w-4" />}
       title="Registration peaks"
-      description={`${capitalize(rangeLabel(from, asOf))} · usually trainings or outreach drives`}
+      description={`${capitalize(rangeLabel(from, asOf, tz))} · usually trainings or outreach drives`}
       infoKey="tel_peaks"
     >
       {peaks.length === 0 ? (

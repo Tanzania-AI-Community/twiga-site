@@ -10,8 +10,9 @@ const csv = z
 export const env = createEnv({
   server: {
     DATABASE_URL: z.string().url(),
-    ADMIN_USERNAME: z.string().default("admin"),
-    ADMIN_PASSWORD: z.string().default("twiga2024!"),
+    ADMIN_USERNAME: z.string().min(1).default("admin"),
+    // No default: admin login stays disabled until a password is configured.
+    ADMIN_PASSWORD: z.string().min(1).optional(),
     // Telemetry: accounts that aren't real teachers (test, team, partner).
     TELEMETRY_EXCLUDED_USER_IDS: csv.pipe(z.array(z.coerce.number().int().positive())),
     TELEMETRY_EXCLUDED_SCHOOLS: csv.transform((list) => list.map((s) => s.toLowerCase())),

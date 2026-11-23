@@ -5,12 +5,15 @@ import { AlertTriangle, Check } from "lucide-react";
 
 import type { SessionEntry } from "@/lib/telemetry";
 import { formatMinutes, gradeLabel, subjectLabel, TOOL_LABELS } from "@/lib/telemetry-format";
+import { zoneName } from "@/lib/time-zone";
+import { useReportingTimeZone } from "@/components/admin/TimeZoneProvider";
 import { cn } from "@/lib/utils";
 import { td, th } from "@/components/admin/telemetry/shared";
 
 
 /** Recent / longest sessions with a two-way toggle. No message text is shown. */
 export function SessionLog({ recent, longest }: { recent: SessionEntry[]; longest: SessionEntry[] }) {
+  const timeZone = useReportingTimeZone();
   const [view, setView] = React.useState<"recent" | "longest">("recent");
   const rows = view === "recent" ? recent : longest;
 
@@ -38,7 +41,7 @@ export function SessionLog({ recent, longest }: { recent: SessionEntry[]; longes
         <table className="w-full min-w-[760px]">
           <thead>
             <tr className="border-b">
-              <th className={th}>Started (EAT)</th>
+              <th className={th}>Started ({zoneName(timeZone, "short")})</th>
               <th className={th}>Teacher</th>
               <th className={th}>Subject and grade</th>
               <th className={th}>What Twiga did</th>

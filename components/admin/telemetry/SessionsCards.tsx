@@ -6,6 +6,7 @@ import { MonthlyBars } from "@/components/admin/telemetry/TelemetryCharts";
 import { SessionLog } from "@/components/admin/telemetry/SessionLog";
 import { EmptyState, TelemetryCard } from "@/components/admin/telemetry/shared";
 import type { MetricInfoKey } from "@/lib/metric-info";
+import { getReportingTimeZone } from "@/lib/time-zone-server";
 
 export const ACTIVITY_LABELS: Record<string, string> = {
   chat_only: "Chat only (no tool used)",
@@ -121,12 +122,13 @@ function HBars({
 
 /** What teachers do in their sessions: which tools ran, or just chat. */
 export async function SessionActivityCard({ asOf, from = "" }: { asOf: string; from?: string }) {
+  const tz = await getReportingTimeZone();
   const { activities, summary } = await getSessions(asOf, from);
   return (
     <TelemetryCard
       icon={<ListChecks className="h-4 w-4" />}
       title="What happens in a session"
-      description={`Sessions ${rangeLabel(from, asOf)} that used each tool. A session can use several.`}
+      description={`Sessions ${rangeLabel(from, asOf, tz)} that used each tool. A session can use several.`}
       infoKey="tel_session_activity"
     >
       {summary.sessions === 0 ? (
@@ -147,12 +149,13 @@ export async function SessionActivityCard({ asOf, from = "" }: { asOf: string; f
 
 /** How long sessions last, in buckets. */
 export async function SessionLengthCard({ asOf, from = "" }: { asOf: string; from?: string }) {
+  const tz = await getReportingTimeZone();
   const { lengths, summary } = await getSessions(asOf, from);
   return (
     <TelemetryCard
       icon={<Timer className="h-4 w-4" />}
       title="How long sessions last"
-      description={`Sessions ${rangeLabel(from, asOf)}, first to last teacher message`}
+      description={`Sessions ${rangeLabel(from, asOf, tz)}, first to last teacher message`}
       infoKey="tel_session_length"
     >
       {summary.sessions === 0 ? (
@@ -166,6 +169,7 @@ export async function SessionLengthCard({ asOf, from = "" }: { asOf: string; fro
 
 /** Sessions per month, split by whether a textbook tool was used. */
 export async function SessionMonthsCard({ asOf, from = "" }: { asOf: string; from?: string }) {
+  const tz = await getReportingTimeZone();
   const { months } = await getSessions(asOf, from);
   const data = months.map((m) => ({
     label: monthLabel(m.month, true),
@@ -176,7 +180,7 @@ export async function SessionMonthsCard({ asOf, from = "" }: { asOf: string; fro
     <TelemetryCard
       icon={<MessagesSquare className="h-4 w-4" />}
       title="Sessions per month"
-      description={`${chartRangeLabel(from, asOf)} · by whether Twiga used a textbook tool`}
+      description={`${chartRangeLabel(from, asOf, tz)} · by whether Twiga used a textbook tool`}
       infoKey="tel_session_months"
     >
       {data.length === 0 ? (
@@ -196,12 +200,13 @@ export async function SessionMonthsCard({ asOf, from = "" }: { asOf: string; fro
 
 /** Recent and longest sessions, one row each. */
 export async function SessionLogCard({ asOf, from = "" }: { asOf: string; from?: string }) {
+  const tz = await getReportingTimeZone();
   const { recent, longest } = await getSessions(asOf, from);
   return (
     <TelemetryCard
       icon={<ListChecks className="h-4 w-4" />}
       title="Session log"
-      description={`${capitalize(rangeLabel(from, asOf))} · subject and grade, tools used, length and whether anything failed`}
+      description={`${capitalize(rangeLabel(from, asOf, tz))} · subject and grade, tools used, length and whether anything failed`}
       infoKey="tel_session_log"
     >
       {recent.length === 0 ? (

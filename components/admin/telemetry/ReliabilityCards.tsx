@@ -13,6 +13,7 @@ import {
 } from "@/lib/telemetry";
 import { ToolTrend } from "@/components/admin/telemetry/TelemetryCharts";
 import { EmptyState, TelemetryCard, td, th } from "@/components/admin/telemetry/shared";
+import { getReportingTimeZone } from "@/lib/time-zone-server";
 
 const toolLabel = (t: string) => TOOL_LABELS[t] ?? t.replace(/_/g, " ");
 
@@ -29,13 +30,14 @@ function Failed({ errors, calls }: { errors: number; calls: number }) {
 
 /** Tool runs and failures in the selected range, plus the last 30 days to its end. */
 export async function ToolsCard({ asOf, from = "" }: { asOf: string; from?: string }) {
+  const tz = await getReportingTimeZone();
   const { tools } = await getReliability(asOf, from);
 
   return (
     <TelemetryCard
       icon={<Wrench className="h-4 w-4" />}
       title="Agent tools"
-      description={`Runs and failures · ${rangeLabel(from, asOf)}`}
+      description={`Runs and failures · ${rangeLabel(from, asOf, tz)}`}
       infoKey="tel_tools"
     >
       {tools.length === 0 ? (
@@ -48,8 +50,8 @@ export async function ToolsCard({ asOf, from = "" }: { asOf: string; from?: stri
                 <th className={th}>Tool</th>
                 <th className={`${th} text-right`}>Runs</th>
                 <th className={`${th} text-right`}>Failed</th>
-                <th className={`${th} text-right`} title={last30Label(asOf)}>Runs 30d</th>
-                <th className={`${th} text-right`} title={last30Label(asOf)}>Failed 30d</th>
+                <th className={`${th} text-right`} title={last30Label(asOf, tz)}>Runs 30d</th>
+                <th className={`${th} text-right`} title={last30Label(asOf, tz)}>Failed 30d</th>
                 <th className={`${th} text-right`}>Last failure</th>
               </tr>
             </thead>
@@ -71,7 +73,7 @@ export async function ToolsCard({ asOf, from = "" }: { asOf: string; from?: stri
             </tbody>
           </table>
           <p className="mt-2 text-[11px] text-muted-foreground">
-            30d columns: {last30Label(asOf)}. Fixed outages stay in the range totals, so check the 30d columns and the
+            30d columns: {last30Label(asOf, tz)}. Fixed outages stay in the range totals, so check the 30d columns and the
             monthly chart for the current state.
           </p>
         </div>
@@ -82,6 +84,7 @@ export async function ToolsCard({ asOf, from = "" }: { asOf: string; from?: stri
 
 /** Interactive monthly trend of successful vs failed runs, per tool. */
 export async function ToolTrendCard({ asOf, from = "" }: { asOf: string; from?: string }) {
+  const tz = await getReportingTimeZone();
   const { tools, monthly } = await getReliability(asOf, from);
   const points = monthly.map((m) => ({
     label: monthLabel(m.month, true),
@@ -94,7 +97,7 @@ export async function ToolTrendCard({ asOf, from = "" }: { asOf: string; from?: 
     <TelemetryCard
       icon={<Wrench className="h-4 w-4" />}
       title="Tool runs per month"
-      description={`Succeeded and failed · ${chartRangeLabel(from, asOf)}`}
+      description={`Succeeded and failed · ${chartRangeLabel(from, asOf, tz)}`}
       infoKey="tel_tool_trend"
     >
       {points.length === 0 ? (
@@ -108,6 +111,7 @@ export async function ToolTrendCard({ asOf, from = "" }: { asOf: string; from?: 
 
 /** Replies where Twiga apologised, refused or couldn't help. */
 export async function RepliesCard({ asOf, from = "" }: { asOf: string; from?: string }) {
+  const tz = await getReportingTimeZone();
   const { replies, replies30 } = await getReliability(asOf, from);
   const problems30 = replies.reduce((s, r) => s + r.last30, 0);
 
@@ -115,7 +119,7 @@ export async function RepliesCard({ asOf, from = "" }: { asOf: string; from?: st
     <TelemetryCard
       icon={<MessageSquareWarning className="h-4 w-4" />}
       title="Problem replies"
-      description={`${capitalize(rangeLabel(from, asOf))} · ${problems30} of ${replies30} replies were problems in the ${last30Label(asOf)}`}
+      description={`${capitalize(rangeLabel(from, asOf, tz))} · ${problems30} of ${replies30} replies were problems in the ${last30Label(asOf, tz)}`}
       infoKey="tel_replies"
     >
       {replies.length === 0 ? (
@@ -126,8 +130,8 @@ export async function RepliesCard({ asOf, from = "" }: { asOf: string; from?: st
             <tr className="border-b">
               <th className={th}>Reply</th>
               <th className={`${th} text-right`}>In range</th>
-              <th className={`${th} text-right`} title={last30Label(asOf)}>Last 30d</th>
-              <th className={`${th} text-right`} title={last30Label(asOf)}>Teachers 30d</th>
+              <th className={`${th} text-right`} title={last30Label(asOf, tz)}>Last 30d</th>
+              <th className={`${th} text-right`} title={last30Label(asOf, tz)}>Teachers 30d</th>
               <th className={`${th} text-right`}>Last seen</th>
             </tr>
           </thead>

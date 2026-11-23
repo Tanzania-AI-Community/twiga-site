@@ -4,30 +4,32 @@ import * as React from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { CalendarRange, Loader2 } from "lucide-react";
 
-import { tzDay } from "@/lib/telemetry-format";
+import { tzDay } from "@/lib/time-zone";
+import { useReportingTimeZone } from "@/components/admin/TimeZoneProvider";
 import { cn } from "@/lib/utils";
 
 
-/** YYYY-MM-DD in Tanzania time, `days` before today. */
-function eatDay(daysAgo = 0): string {
-  return tzDay(new Date(Date.now() - daysAgo * 86_400_000));
+/** YYYY-MM-DD in the reporting time zone, `days` before today. */
+function zoneDay(timeZone: string, daysAgo = 0): string {
+  return tzDay(new Date(Date.now() - daysAgo * 86_400_000), timeZone);
 }
 
-type Preset = { key: string; label: string; from: () => string; to: () => string };
+type Preset = { key: string; label: string; from: (timeZone: string) => string; to: () => string };
 
 const PRESETS: Preset[] = [
   { key: "all", label: "All time", from: () => "", to: () => "" },
-  { key: "7d", label: "Last 7 days", from: () => eatDay(6), to: () => "" },
-  { key: "30d", label: "Last 30 days", from: () => eatDay(29), to: () => "" },
-  { key: "90d", label: "Last 90 days", from: () => eatDay(89), to: () => "" },
-  { key: "year", label: "This year", from: () => `${eatDay().slice(0, 4)}-01-01`, to: () => "" },
+  { key: "7d", label: "Last 7 days", from: (tz) => zoneDay(tz, 6), to: () => "" },
+  { key: "30d", label: "Last 30 days", from: (tz) => zoneDay(tz, 29), to: () => "" },
+  { key: "90d", label: "Last 90 days", from: (tz) => zoneDay(tz, 89), to: () => "" },
+  { key: "year", label: "This year", from: (tz) => `${zoneDay(tz).slice(0, 4)}-01-01`, to: () => "" },
 ];
 
 /**
  * Date range for the whole telemetry page, kept in the URL (?from=&to=) so a
- * view can be shared. Empty "to" means up to now. Dates are Tanzania days.
+ * view can be shared. Empty "to" means up to now. Dates are days in the reporting time zone.
  */
 export function DateRangeFilter({ from, to }: { from: string; to: string }) {
+  const timeZone = useReportingTimeZone();
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
@@ -36,7 +38,7 @@ export function DateRangeFilter({ from, to }: { from: string; to: string }) {
 
   React.useEffect(() => setCustom({ from, to }), [from, to]);
 
-  const active = PRESETS.find((p) => p.from() === from && p.to() === to)?.key ?? "custom";
+  const active = PRESETS.find((p) => p.from(timeZone) === from && p.to() === to)?.key ?? "custom";
 
   const apply = (nextFrom: string, nextTo: string) => {
     const q = new URLSearchParams(params.toString());
@@ -58,7 +60,7 @@ export function DateRangeFilter({ from, to }: { from: string; to: string }) {
             key={p.key}
             type="button"
             aria-pressed={active === p.key}
-            onClick={() => apply(p.from(), p.to())}
+            onClick={() => apply(p.from(timeZone), p.to())}
             className={cn(
               "h-8 rounded-md border px-2.5 text-xs font-medium transition-colors",
               active === p.key
@@ -84,7 +86,7 @@ export function DateRangeFilter({ from, to }: { from: string; to: string }) {
           type="date"
           aria-label="From"
           value={custom.from}
-          max={custom.to || eatDay()}
+          max={custom.to || zoneDay(timeZone)}
           onChange={(e) => setCustom((c) => ({ ...c, from: e.target.value }))}
           className="h-7 bg-transparent text-xs text-slate-700 focus:outline-none"
         />
@@ -94,7 +96,7 @@ export function DateRangeFilter({ from, to }: { from: string; to: string }) {
           aria-label="To"
           value={custom.to}
           min={custom.from || undefined}
-          max={eatDay()}
+          max={zoneDay(timeZone)}
           onChange={(e) => setCustom((c) => ({ ...c, to: e.target.value }))}
           className="h-7 bg-transparent text-xs text-slate-700 focus:outline-none"
         />

@@ -5,6 +5,7 @@ import { adminLogout } from "@/lib/actions";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { FilterPopover } from "@/components/admin/FilterPopover";
+import { TimeZoneSelect } from "@/components/admin/TimeZoneSelect";
 
 type AdminPage = "dashboard" | "telemetry";
 
@@ -15,7 +16,8 @@ const PAGES: { key: AdminPage; href: string; label: string; icon: typeof Activit
 
 /**
  * Slim sticky admin nav: brand and page links on the left, grouped actions on
- * the right. Filters live behind a popover and only apply to the dashboard.
+ * the right. Filters live behind a popover and only apply to the dashboard;
+ * the time zone picker applies to every admin page.
  */
 export function AdminNav({ active = "dashboard" }: { active?: AdminPage }) {
   return (
@@ -48,6 +50,7 @@ export function AdminNav({ active = "dashboard" }: { active?: AdminPage }) {
           ))}
         </nav>
         <div className="ml-auto flex items-center gap-2">
+          <TimeZoneSelect />
           {active === "dashboard" && <FilterPopover />}
           <form action={adminLogout}>
             <Button variant="outline" className="gap-2 rounded-md">

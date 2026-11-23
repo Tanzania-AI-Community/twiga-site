@@ -1,4 +1,5 @@
 import type { UnfinishedTeacher } from "@/lib/telemetry";
+import { zoneName } from "@/lib/time-zone";
 
 /** Where a teacher stopped onboarding, as shown in the panel and the CSV. */
 export const STOPPED_AT_LABELS: Record<string, string> = {
@@ -29,16 +30,17 @@ function csvCell(value: string | number | null, { phone = false } = {}): string 
 const PHONE_COLUMN = 1;
 
 /** The CSV text for a list of teachers (exactly what the panel shows). */
-export function buildCsv(rows: UnfinishedTeacher[]): string {
+export function buildCsv(rows: UnfinishedTeacher[], timeZone: string): string {
+  const zone = zoneName(timeZone, "short");
   const header = [
     "Name",
     "Phone",
     "School",
     "Region",
-    "Registered (EAT)",
+    `Registered (${zone})`,
     "Stopped at",
     "Messages sent",
-    "Last message (EAT)",
+    `Last message (${zone})`,
     "Account status",
   ];
   const lines = rows.map((r) =>

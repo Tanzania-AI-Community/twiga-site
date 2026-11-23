@@ -8,6 +8,7 @@ import type { UnfinishedTeacher } from "@/lib/telemetry";
 import { monthLabel, rangeLabel } from "@/lib/telemetry-format";
 import { buildCsv, formatPhone, STOPPED_AT_LABELS } from "@/components/admin/telemetry/csv";
 import { cn } from "@/lib/utils";
+import { useReportingTimeZone } from "@/components/admin/TimeZoneProvider";
 import { Button } from "@/components/ui/button";
 import {
   Drawer,
@@ -26,8 +27,8 @@ const STOPPED_AT: Record<string, { label: string; className: string }> = {
   },
 };
 
-function downloadCsv(rows: UnfinishedTeacher[], scope: string) {
-  const blob = new Blob([buildCsv(rows)], { type: "text/csv;charset=utf-8" });
+function downloadCsv(rows: UnfinishedTeacher[], scope: string, timeZone: string) {
+  const blob = new Blob([buildCsv(rows, timeZone)], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
@@ -60,16 +61,17 @@ export function UnfinishedTeachersPanel({
   month: string | null;
   onMonthChange: (month: string | null) => void;
 }) {
+  const timeZone = useReportingTimeZone();
   const [rows, setRows] = React.useState<UnfinishedTeacher[] | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [stage, setStage] = React.useState<string>("all");
   const [search, setSearch] = React.useState("");
 
-  // A new date range means a new list: drop the old one (and any error).
+  // A new date range or time zone means a new list: drop the old one (and any error).
   React.useEffect(() => {
     setRows(null);
     setError(null);
-  }, [asOf, from]);
+  }, [asOf, from, timeZone]);
 
   // Load when opened; reopening after an error retries.
   React.useEffect(() => {
@@ -113,7 +115,7 @@ export function UnfinishedTeachersPanel({
                 Teachers who didn&apos;t finish onboarding
               </DrawerTitle>
               <DrawerDescription className="text-xs">
-                {month ? `Registered in ${monthLabel(month)}` : `Registered ${rangeLabel(from, asOf)}`} · use this list to follow up
+                {month ? `Registered in ${monthLabel(month)}` : `Registered ${rangeLabel(from, asOf, timeZone)}`} · use this list to follow up
               </DrawerDescription>
             </div>
             <DrawerClose asChild>
@@ -160,7 +162,7 @@ export function UnfinishedTeachersPanel({
             <Button
               size="sm"
               disabled={!shown.length}
-              onClick={() => downloadCsv(shown, month ?? "all-months")}
+              onClick={() => downloadCsv(shown, month ?? "all-months", timeZone)}
               className="h-8 gap-1.5 rounded-md bg-green-600 text-xs text-white hover:bg-green-700"
             >
               <Download className="h-3.5 w-3.5" />
