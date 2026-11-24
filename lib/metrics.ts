@@ -3,22 +3,14 @@
  *
  * Everything here is client-safe (no server imports, no React) so the same
  * functions can run in server components and in the interactive chart client.
- * All date math intentionally uses the runtime's local timezone.
+ * Days, weeks and months are counted in the admin's reporting time zone
+ * (lib/time-zone), passed in by the caller, so the server and the browser
+ * group dates the same way.
  */
 
-import {
-  differenceInYears,
-  eachDayOfInterval,
-  eachMonthOfInterval,
-  eachWeekOfInterval,
-  format,
-  startOfDay,
-  startOfMonth,
-  startOfWeek,
-  subDays,
-  subMonths,
-  subWeeks,
-} from "date-fns";
+import { differenceInYears } from "date-fns";
+
+import { startOfZonedDay, wallClock, zonedTime } from "@/lib/time-zone";
 
 // Minimal user shape the metrics need. Matches rows from the users table.
 export interface MetricUser {
@@ -77,52 +69,96 @@ export interface RegistrationBucket {
   cumulative: number;
 }
 
-// How far back each granularity looks, to keep the chart readable.
-const GRANULARITY_WINDOW: Record<Granularity, (now: Date) => Date> = {
-  day: (now) => subDays(startOfDay(now), 89), // last 90 days
-  week: (now) => subWeeks(startOfWeek(now, { weekStartsOn: 1 }), 25), // last 26 weeks
-  month: (now) => subMonths(startOfMonth(now), 11), // last 12 months
+const DAY_MS = 86_400_000;
+const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+// Calendar days are held as UTC-midnight Dates ("civil days"), so day, week
+// and month arithmetic never depends on the runtime's own time zone.
+
+/** The calendar day an instant falls on in `timeZone`. */
+function civilDay(d: Date, timeZone: string): Date {
+  const w = wallClock(d, timeZone);
+  return new Date(Date.UTC(w.year, w.month - 1, w.day));
+}
+
+const addDays = (day: Date, n: number) => new Date(day.getTime() + n * DAY_MS);
+const isoDate = (day: Date) => day.toISOString().slice(0, 10);
+
+/** Monday of the ISO week containing a civil day. */
+function weekStart(day: Date): Date {
+  return addDays(day, 1 - (day.getUTCDay() || 7));
+}
+
+/** ISO week-numbering year and week of a civil day (weeks start Monday). */
+function isoWeek(day: Date): { year: number; week: number } {
+  const thursday = addDays(weekStart(day), 3);
+  const year = thursday.getUTCFullYear();
+  const week = Math.floor((thursday.getTime() - Date.UTC(year, 0, 1)) / DAY_MS / 7) + 1;
+  return { year, week };
+}
+
+type Calendar = {
+  /** Periods shown on the chart, oldest first, ending with the current one. */
+  periods: (today: Date) => Date[];
+  keyOf: (day: Date) => string;
+  labelOf: (day: Date) => string;
 };
 
+// How far back each granularity looks, to keep the chart readable.
+const CALENDARS: Record<Granularity, Calendar> = {
+  // Last 90 days.
+  day: {
+    periods: (today) => Array.from({ length: 90 }, (_, i) => addDays(today, i - 89)),
+    keyOf: isoDate,
+    labelOf: (day) => `${day.getUTCDate()}/${day.getUTCMonth() + 1}`,
+  },
+  // Last 26 ISO weeks.
+  week: {
+    periods: (today) => Array.from({ length: 26 }, (_, i) => addDays(weekStart(today), (i - 25) * 7)),
+    keyOf: (day) => {
+      const { year, week } = isoWeek(day);
+      return `${year}-${String(week).padStart(2, "0")}`;
+    },
+    labelOf: (day) => `W${isoWeek(day).week}`,
+  },
+  // Last 12 months.
+  month: {
+    periods: (today) =>
+      Array.from({ length: 12 }, (_, i) => new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() + i - 11, 1))),
+    keyOf: (day) => isoDate(day).slice(0, 7),
+    labelOf: (day) => MONTH_NAMES[day.getUTCMonth()],
+  },
+};
+
+/** Start of the longest chart window (12 months) in `timeZone`. Shorter views sit inside it. */
+export function chartHistoryStart(timeZone: string, now: Date = new Date()): Date {
+  const w = wallClock(now, timeZone);
+  return zonedTime(timeZone, w.year, w.month - 11, 1);
+}
+
 /**
- * Buckets registration timestamps by day, week, or month with zero-filled
- * gaps so quiet periods still show on the chart.
+ * Buckets registration timestamps by day, week, or month in `timeZone`, with
+ * zero-filled gaps so quiet periods still show on the chart.
  */
 export function bucketRegistrations(
-  createdAt: (Date | number)[],
+  createdAt: (Date | number | { at: Date | number; count: number })[],
   granularity: Granularity,
+  timeZone: string,
   now: Date = new Date()
 ): RegistrationBucket[] {
-  const from = GRANULARITY_WINDOW[granularity](now);
+  const { periods, keyOf, labelOf } = CALENDARS[granularity];
+  const shown = periods(civilDay(now, timeZone));
 
-  let periods: Date[];
-  let keyOf: (d: Date) => string;
-  let labelOf: (d: Date) => string;
-
-  if (granularity === "day") {
-    periods = eachDayOfInterval({ start: from, end: now });
-    keyOf = (d) => format(d, "yyyy-MM-dd");
-    labelOf = (d) => format(d, "d/M");
-  } else if (granularity === "week") {
-    periods = eachWeekOfInterval({ start: from, end: now }, { weekStartsOn: 1 });
-    keyOf = (d) => format(startOfWeek(d, { weekStartsOn: 1 }), "RRRR-II");
-    labelOf = (d) => `W${format(startOfWeek(d, { weekStartsOn: 1 }), "I")}`;
-  } else {
-    periods = eachMonthOfInterval({ start: from, end: now });
-    keyOf = (d) => format(d, "yyyy-MM");
-    labelOf = (d) => format(d, "MMM");
-  }
-
-  const counts = new Map<string, number>(periods.map((p) => [keyOf(p), 0]));
+  const counts = new Map<string, number>(shown.map((p) => [keyOf(p), 0]));
   for (const raw of createdAt) {
-    const date = new Date(raw);
-    const key = keyOf(date);
-    // Registrations older than the window are ignored on purpose.
-    if (counts.has(key)) counts.set(key, (counts.get(key) ?? 0) + 1);
+    const weighted = typeof raw === "object" && "count" in raw;
+    const key = keyOf(civilDay(new Date(weighted ? raw.at : raw), timeZone));
+    // Points outside the window are ignored on purpose.
+    if (counts.has(key)) counts.set(key, (counts.get(key) ?? 0) + (weighted ? raw.count : 1));
   }
 
   let running = 0;
-  return periods.map((p) => {
+  return shown.map((p) => {
     const count = counts.get(keyOf(p)) ?? 0;
     running += count;
     return { label: labelOf(p), count, cumulative: running };
@@ -302,10 +338,13 @@ export interface RegistrationStats {
  */
 export function registrationWindows(
   createdAt: (Date | null)[],
+  timeZone: string,
   now: Date = new Date()
 ): RegistrationStats {
-  const todayStart = startOfDay(now).getTime();
-  const dayMs = 86_400_000;
+  const todayStart = startOfZonedDay(now, timeZone).getTime();
+  // Midnight before, not 24h before: a DST change day is 23 or 25 hours.
+  const yesterdayStart = startOfZonedDay(new Date(todayStart - 1), timeZone).getTime();
+  const dayMs = DAY_MS;
   const stats: RegistrationStats = {
     today: { current: 0, previous: 0 },
     week: { current: 0, previous: 0 },
@@ -320,7 +359,7 @@ export function registrationWindows(
     stats.total += 1;
     const t = raw.getTime();
     if (t >= todayStart) stats.today.current += 1;
-    else if (t >= todayStart - dayMs) stats.today.previous += 1;
+    else if (t >= yesterdayStart) stats.today.previous += 1;
 
     const nowMs = now.getTime();
     if (t >= nowMs - 7 * dayMs) stats.week.current += 1;

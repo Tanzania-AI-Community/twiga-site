@@ -1,10 +1,16 @@
 import { cache } from "react";
-import { and, desc, eq, gte, ilike, lte, or } from "drizzle-orm";
+import { and, desc, eq, gte, ilike, lte, or, sql } from "drizzle-orm";
 
 import { db } from "@/db";
-import { users } from "@/db/schema";
-import { registrationWindows, type RegistrationStats } from "@/lib/metrics";
+import { messages, users } from "@/db/schema";
+import {
+  chartHistoryStart,
+  registrationWindows,
+  type RegistrationStats,
+} from "@/lib/metrics";
 import type { AdminDashboardSearchParams } from "@/lib/search-params";
+import { startOfZonedDay, zonedDayStart } from "@/lib/time-zone";
+import { getReportingTimeZone } from "@/lib/time-zone-server";
 
 /**
  * Fetches users matching the dashboard filters.
@@ -68,6 +74,91 @@ export const getRegistrationStats = cache(
       .select({ created_at: users.created_at })
       .from(users);
 
-    return registrationWindows(rows.map((row) => row.created_at));
+    return registrationWindows(rows.map((row) => row.created_at), await getReportingTimeZone());
+  }
+);
+
+const teacherMessage = sql`${messages.role} = 'user'::messagerole`;
+
+function countOf(value: unknown): number {
+  const count = Number(value);
+  return Number.isFinite(count) ? count : 0;
+}
+
+/**
+ * Today / 7-day / 30-day message totals, counted in Postgres.
+ * Scans the last 60 days only, so the cards can paint before the year chart.
+ * "Today" starts at midnight in the admin's reporting time zone. Bounds match
+ * registrationWindows.
+ */
+export const getMessageWindowStats = cache(
+  async (now: Date = new Date()): Promise<RegistrationStats> => {
+    const dayMs = 86_400_000;
+    const timeZone = await getReportingTimeZone();
+    const todayStart = startOfZonedDay(now, timeZone);
+    // Midnight before, not 24h before: a DST change day is 23 or 25 hours.
+    const yesterdayStart = startOfZonedDay(new Date(todayStart.getTime() - 1), timeZone);
+    const weekStart = new Date(now.getTime() - 7 * dayMs);
+    const prevWeekStart = new Date(now.getTime() - 14 * dayMs);
+    const monthStart = new Date(now.getTime() - 30 * dayMs);
+    const prevMonthStart = new Date(now.getTime() - 60 * dayMs);
+
+    const [row] = await db
+      .select({
+        todayCurrent: sql<number>`count(*) filter (where ${messages.created_at} >= ${todayStart.toISOString()})::int`,
+        todayPrevious: sql<number>`count(*) filter (where ${messages.created_at} >= ${yesterdayStart.toISOString()} and ${messages.created_at} < ${todayStart.toISOString()})::int`,
+        weekCurrent: sql<number>`count(*) filter (where ${messages.created_at} >= ${weekStart.toISOString()})::int`,
+        weekPrevious: sql<number>`count(*) filter (where ${messages.created_at} >= ${prevWeekStart.toISOString()} and ${messages.created_at} < ${weekStart.toISOString()})::int`,
+        monthCurrent: sql<number>`count(*) filter (where ${messages.created_at} >= ${monthStart.toISOString()})::int`,
+        monthPrevious: sql<number>`count(*) filter (where ${messages.created_at} >= ${prevMonthStart.toISOString()} and ${messages.created_at} < ${monthStart.toISOString()})::int`,
+      })
+      .from(messages)
+      .where(
+        and(
+          teacherMessage,
+          eq(messages.is_present_in_conversation, true),
+          gte(messages.created_at, prevMonthStart)
+        )
+      );
+
+    const weekCurrent = countOf(row?.weekCurrent);
+    const monthCurrent = countOf(row?.monthCurrent);
+    const monthPrevious = countOf(row?.monthPrevious);
+
+    return {
+      today: {
+        current: countOf(row?.todayCurrent),
+        previous: countOf(row?.todayPrevious),
+      },
+      week: { current: weekCurrent, previous: countOf(row?.weekPrevious) },
+      month: { current: monthCurrent, previous: monthPrevious },
+      perDay7: weekCurrent / 7,
+      perDay30: monthCurrent / 30,
+      total: monthCurrent + monthPrevious,
+    };
+  }
+);
+
+/** One row per day (reporting time zone) that had teacher messages, for the 12-month chart. */
+export const getMessageDayCounts = cache(
+  async (): Promise<{ at: Date; count: number }[]> => {
+    const timeZone = await getReportingTimeZone();
+    const rows = await db
+      .select({
+        day: sql<string>`to_char(${messages.created_at} at time zone ${timeZone}, 'YYYY-MM-DD')`,
+        count: sql<number>`count(*)::int`,
+      })
+      .from(messages)
+      .where(
+        and(
+          teacherMessage,
+          eq(messages.is_present_in_conversation, true),
+          gte(messages.created_at, chartHistoryStart(timeZone))
+        )
+      )
+      .groupBy(sql`1`)
+      .orderBy(sql`1`);
+
+    return rows.map((row) => ({ at: zonedDayStart(String(row.day), timeZone), count: countOf(row.count) }));
   }
 );
